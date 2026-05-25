@@ -78,8 +78,28 @@ with t1:
                 st.error("❌ 庫存不足！無法領取")
             else:
                 new_stock = current_stock_val - qty
-                col_num = df_inv.columns.get_loc("開目前庫存" if "開目前庫存" in df_inv.columns else "目前庫存") + 1
+                col_num = df_inv.columns.get_loc("目前庫存") + 1
                 sh.worksheet("inventory").update_cell(idx + 2, col_num, new_stock)
                 
+                # 💡 徹底修正第 85 行，強制單行不換行，括號 100% 閉合
                 log_data = [datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "領用", t_sel, qty, u, m, r, wo if wo else "無"]
-                sh.worksheet("logs").append_row(
+                sh.worksheet("logs").append_row(log_data)
+                
+                st.success(f"✅ 領用成功！已扣除 {qty} 個")
+                st.rerun()
+
+# ==========================================
+# TAB 2: 管理員後台
+# ==========================================
+with t2:
+    if st.text_input("輸入管理密碼", type="password") == "1234":
+        sub = st.radio("功能選擇", ["庫存總覽與叫貨", "進貨入庫", "全新建檔", "修改與校正庫存"], horizontal=True)
+        
+        # 1. 庫存總覽與 LINE 一鍵叫貨
+        if sub == "庫存總覽與叫貨":
+            st.markdown("### 🚨 庫存告急專區 (低於或等於安全庫存)")
+            df_alert = df_inv[df_inv["開目前庫存" if "開目前庫存" in df_inv.columns else "目前庫存"].astype(int) <= df_inv["安全庫存"].astype(int)]
+            
+            if df_alert.empty:
+                st.success("✅ 目前所有刀具水位安全，沒有缺貨！")
+            else:
