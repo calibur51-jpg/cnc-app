@@ -31,7 +31,7 @@ def get_sh():
 df_inv, df_log, df_set = get_data()
 
 st.set_page_config(page_title="CNC", layout="wide")
-st.title("CNC 刀具系統")
+st.title("明星精密刀具管理系統")
 
 t1, t2, t3 = st.tabs(["領用", "後台", "紀錄"])
 
