@@ -172,12 +172,13 @@ with t3:
             all_machines = df_set["機台"].replace("", pd.NA).dropna().tolist()
             sel_machines = col_c.multiselect("篩選機台:", all_machines, default=[])
             
-            # 💡 修改點：這裡先定義 search_wo
-            search_wo = st.text_input("🔍 搜尋工單號碼 (輸入關鍵字):")
+            # 工單搜尋框
+            search_wo = st.text_input("🔍 搜尋工單號碼 (選填):")
             
             # --- 綜合過濾邏輯 ---
             df_filtered = df_log.copy()
             
+            # 多條件篩選
             if sel_reasons:
                 df_filtered = df_filtered[df_filtered["原因類型"].astype(str).isin([str(s) for s in sel_reasons])]
             if sel_staff:
@@ -185,9 +186,14 @@ with t3:
             if sel_machines:
                 df_filtered = df_filtered[df_filtered["備註"].astype(str).isin([str(s) for s in sel_machines])]
             
-            # 💡 修改點：因為上面的 search_wo 已經定義過了，這裡可以直接使用
-            if search_wo:
-                df_filtered = df_filtered[df_filtered["工單"].astype(str).str.contains(search_wo, case=False, na=False)]
+            # 工單搜尋 (關鍵：確保欄位存在且只有輸入時才過濾)
+            if search_wo and search_wo.strip() != "":
+                if "工單" in df_filtered.columns:
+                    df_filtered = df_filtered[df_filtered["工單"].astype(str).str.contains(search_wo.strip(), case=False, na=False)]
+                else:
+                    st.error("系統未找到 '工單' 欄位，請檢查 Google Sheet 表頭是否正確。")
+            
+            st.dataframe(df_filtered, use_container_width=True)
             
             # 報表匯出
             buf = io.BytesIO()
