@@ -5,80 +5,154 @@ import os
 from datetime import datetime
 import io
 
-# ==========================================
-# 雲端設定
-# ==========================================
 SPREADSHEET_ID = "1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8"
-json_files = [f for f in os.listdir('.') if f.endswith('.json')]
-JSON_FILE_NAME = json_files[0] if json_files else None
+jsons = [f for f in os.listdir('.') if f.endswith('.json')]
+JSON_FILE = jsons[0] if jsons else None
 
-def get_gc():
-    return gspread.service_account(filename=JSON_FILE_NAME)
-
-@st.cache_data(ttl=5)
-def get_data_cached():
-    gc = get_gc()
-    sh = gc.open_by_key(SPREADSHEET_ID)
-    df_inv = pd.DataFrame(sh.worksheet("inventory").get_all_records())
-    df_log = pd.DataFrame(sh.worksheet("logs").get_all_records())
-    return df_inv, df_log
-
-def get_raw_sh():
-    return get_gc().open_by_key(SPREADSHEET_ID)
-
-if not JSON_FILE_NAME:
+if not JSON_FILE:
     st.error("找不到 JSON 憑證檔！")
     st.stop()
 
-df_inv, df_log = get_data_cached()
+@st.cache_data(ttl=5)
+def get_data():
+    gc = gspread.service_account(filename=JSON_FILE)
+    sh = gc.open_by_key(SPREADSHEET_ID)
+    inv = pd.DataFrame(sh.worksheet("inventory").get_all_records())
+    log = pd.DataFrame(sh.worksheet("logs").get_all_records())
+    return inv, log
+
+def get_sh():
+    gc = gspread.service_account(filename=JSON_FILE)
+    return gc.open_by_key(SPREADSHEET_ID)
+
+df_inv, df_log = get_data()
 
 st.set_page_config(page_title="CNC", layout="wide")
-st.title("CNC 刀具智慧管理系統 (極簡防呆版)")
+st.title("CNC 刀具系統")
 
-def c_low(row): 
-    return ['background-color: #ffcccc; color: #800000; font-weight: bold;'] * len(row) if int(row['目前庫存']) <= int(row['安全庫存']) else [''] * len(row)
+t1, t2, t3 = st.tabs(["領用", "後台", "紀錄"])
 
-t1, t2, t3 = st.tabs(["現場領用", "管理員後台", "歷史紀錄"])
-
-# ==========================================
-# TAB 1: 現場領用
-# ==========================================
 with t1:
     cats = ["全部"] + df_inv["分類"].unique().tolist()
-    cat_sel = st.selectbox("請先選擇大分類", cats, key="cat_sel_t1_v6")
+    cat_sel = st.selectbox("分類", cats, key="c1")
     df_f = df_inv if cat_sel == "全部" else df_inv[df_inv["分類"] == cat_sel]
     
-    tool_list = df_f["品名規格"].tolist()
-    if not tool_list:
-        st.warning("此分類下目前無刀具資料")
+    t_list = df_f["品名規格"].tolist()
+    if not t_list:
+        st.warning("無資料")
     else:
-        t_name = st.selectbox("請選擇刀具名稱", tool_list, key="t_name_t1_v6")
+        t_name = st.selectbox("刀具", t_list, key="n1")
         idx = df_inv[df_inv["品名規格"] == t_name].index[0]
         t_sel = df_inv.loc[idx, "刀具編號"]
-        current_stock_val = int(df_inv.loc[idx, "目前庫存"])
+        cur_stock = int(df_inv.loc[idx, "目前庫存"])
         
-        st.info(f"📍 規格: {t_name} | 編號: {t_sel} | 目前庫存: {current_stock_val}")
+        st.info(f"編號:{t_sel} | 儲位:{df_inv.loc[idx, '儲位']} | 庫存:{cur_stock}")
         
-        if "qty_v6" not in st.session_state:
-            st.session_state["qty_v6"] = 1
+        if "q_val" not in st.session_state:
+            st.session_state["q_val"] = 1
             
-        c1, c2 = st.columns(2)
-        with c1: 
-            if st.button("➕ 數量加 1", use_container_width=True, key="btn_add_v6"):
-                st.session_state["qty_v6"] += 1
+        col1, col2 = st.columns(2)
+        with col1: 
+            if st.button("➕ 加1", key="b_add"):
+                st.session_state["q_val"] += 1
                 st.rerun()
-        with c2: 
-            if st.button("🔄 數量歸零", use_container_width=True, key="btn_reset_v6"):
-                st.session_state["qty_v6"] = 1
+        with col2: 
+            if st.button("🔄 歸1", key="b_res"):
+                st.session_state["q_val"] = 1
                 st.rerun()
 
-        qty_final = st.number_input("當前準備領用數量", min_value=1, value=st.session_state["qty_v6"], key="qty_show_v6")
-        st.session_state["qty_v6"] = qty_final
+        qty = st.number_input("數量", min_value=1, value=st.session_state["q_val"])
+        st.session_state["q_val"] = qty
         
-        u = st.selectbox("人員", ["小翔", "阿玄", "少宏", "阿晴", "阿偉", "阿福", "阿鬼"], key="user_t1_v6")
-        cnc_machines = [f"CNC-{i:02d}" for i in range(1, 12)] + ["廠內備庫"]
-        m = st.selectbox("機台", cnc_machines, key="machine_t1_v6")
-        r = st.selectbox("原因", ["正常磨損", "異常崩刃", "調機", "其他"], key="reason_t1_v6")
-        wo = st.text_input("工單號碼 (選填)", key="wo_t1_v6").strip()
+        u = st.selectbox("人員", ["小翔","阿玄","少宏","阿晴","阿偉","阿福","阿鬼"])
+        m = st.selectbox("機台", [f"CNC-{i:02d}" for i in range(1,12)]+["備庫"])
+        r = st.selectbox("原因", ["正常磨損", "異常崩刃", "調機", "其他"])
+        wo = st.text_input("工單").strip()
         
-        if
+        if st.button("確認", type="primary", key="btn_ok"):
+            if st.session_state["q_val"] > cur_stock: 
+                st.error("庫存不足")
+            else:
+                new_s = cur_stock - st.session_state["q_val"]
+                col_n = df_inv.columns.get_loc("目前庫存") + 1
+                get_sh().worksheet("inventory").update_cell(idx+2, col_n, new_s)
+                
+                now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                log_d = [now, "領用", t_sel, st.session_state["q_val"], u, m, r, wo]
+                get_sh().worksheet("logs").append_row(log_d)
+                
+                st.session_state["q_val"] = 1
+                st.success("成功")
+                st.cache_data.clear()
+                st.rerun()
+
+with t2:
+    if st.text_input("密碼", type="password", key="pw2") == "1234":
+        sub = st.radio("功能", ["叫貨", "進貨", "建檔", "校正"], horizontal=True)
+        
+        if sub == "叫貨":
+            alert = df_inv[df_inv["目前庫存"].astype(int) <= df_inv["安全庫存"].astype(int)]
+            if alert.empty:
+                st.success("庫存安全")
+            else:
+                st.dataframe(alert, hide_index=True)
+                txt = "【叫貨】\n"
+                for _, row in alert.iterrows():
+                    need = int(row['安全庫存'])*2 - int(row['目前庫存'])
+                    need = max(need, 5)
+                    txt += f"{row['品名規格']} * {need}\n"
+                st.text_area("LINE", txt, height=150)
+            st.dataframe(df_inv, hide_index=True)
+
+        elif sub == "進貨":
+            t_in = st.selectbox("刀具", df_inv["品名規格"].tolist(), key="in1")
+            idx_in = df_inv[df_inv["品名規格"] == t_in].index[0]
+            q_in = st.number_input("數量", min_value=1, step=1, key="in2")
+            if st.button("確認進貨", key="in3"):
+                col_n = df_inv.columns.get_loc("目前庫存") + 1
+                new_s = int(df_inv.loc[idx_in, "目前庫存"]) + q_in
+                get_sh().worksheet("inventory").update_cell(idx_in+2, col_n, new_s)
+                now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                log_d = [now, "進貨", df_inv.loc[idx_in,"刀具編號"], q_in, "管理", "補貨", "進貨", "無"]
+                get_sh().worksheet("logs").append_row(log_d)
+                st.success("成功")
+                st.cache_data.clear()
+                st.rerun()
+
+        elif sub == "建檔":
+            with st.form("f_new"):
+                c = st.selectbox("分類", ["銑刀","圓鼻刀","球刀","粉末鑽頭","黑鑽","絲功","銑牙刀"])
+                nid = st.text_input("編號")
+                nname = st.text_input("品名")
+                nloc = st.text_input("儲位")
+                nstock = st.number_input("目前庫存", min_value=0)
+                nsafe = st.number_input("安全庫存", min_value=0)
+                if st.form_submit_button("確認建檔"):
+                    get_sh().worksheet("inventory").append_row([c, nid, nname, nloc, nstock, nsafe])
+                    st.success("成功")
+                    st.cache_data.clear()
+                    st.rerun()
+
+        elif sub == "校正":
+            e_name = st.selectbox("刀具", df_inv["品名規格"].tolist(), key="e1")
+            e_idx = df_inv[df_inv["品名規格"] == e_name].index[0]
+            with st.form("f_edit"):
+                c_list = ["銑刀","圓鼻刀","球刀","粉末鑽頭","黑鑽","絲功","銑牙刀"]
+                c_idx = c_list.index(df_inv.loc[e_idx, '分類']) if df_inv.loc[e_idx, '分類'] in c_list else 0
+                ec = st.selectbox("分類", c_list, index=c_idx)
+                eid = st.text_input("編號", df_inv.loc[e_idx, '刀具編號'])
+                enm = st.text_input("品名", df_inv.loc[e_idx, '品名規格'])
+                eloc = st.text_input("儲位", df_inv.loc[e_idx, '儲位'])
+                estk = st.number_input("目前庫存", value=int(df_inv.loc[e_idx, '目前庫存']))
+                esaf = st.number_input("安全庫存", value=int(df_inv.loc[e_idx, '安全庫存']))
+                if st.form_submit_button("儲存"):
+                    sh_r = get_sh()
+                    r_n = e_idx + 2
+                    sh_r.worksheet("inventory").update_cell(r_n, 1, ec)
+                    sh_r.worksheet("inventory").update_cell(r_n, 2, eid)
+                    sh_r.worksheet("inventory").update_cell(r_n, 3, enm)
+                    sh_r.worksheet("inventory").update_cell(r_n, 4, eloc)
+                    sh_r.worksheet("inventory").update_cell(r_n, 5, estk)
+                    sh_r.worksheet("inventory").update_cell(r_n, 6, esaf)
+                    st.success("成功")
+                    st.cache_data.clear()
