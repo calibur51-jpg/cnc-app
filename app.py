@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import gspread
@@ -64,20 +63,17 @@ with t1:
         r = st.selectbox("原因", ["正常磨損", "異常崩刃", "調機", "其他"])
         wo = st.text_input("工單").strip()
         
-        if st.button("確認領用", type="primary"):
-            st.session_state["confirm_data"] = {"q": qty, "u": u, "m": m, "r": r, "wo": wo, "idx": idx, "cur": cur_stock, "ts": t_sel, "nm": t_name}
-
-        if "confirm_data" in st.session_state:
-            d = st.session_state["confirm_data"]
-            st.warning(f"請確認：【{d['nm']}】x {d['q']} 支")
-            if st.button("✅ 確定執行", type="primary"):
-                new_s = d['cur'] - d['q']
-                get_sh().worksheet("inventory").update_cell(d['idx']+2, df_inv.columns.get_loc("目前庫存")+1, new_s)
-                get_sh().worksheet("logs").append_row([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "領用", d['ts'], d['q'], d['u'], d['m'], d['r'], d['wo']])
+        if st.button("確認領用", type="primary", use_container_width=True):
+            if qty > cur_stock:
+                st.error("❌ 庫存不足！")
+            else:
+                new_s = cur_stock - qty
+                get_sh().worksheet("inventory").update_cell(idx+2, df_inv.columns.get_loc("目前庫存")+1, new_s)
+                get_sh().worksheet("logs").append_row([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "領用", t_sel, qty, u, m, r, wo])
+                st.success(f"✅ 已領刀：{t_name} 共 {qty} 支")
                 st.session_state["q_val"] = 1
-                del st.session_state["confirm_data"]
-                st.success("領用成功！"); st.cache_data.clear(); st.rerun()
-            if st.button("❌ 取消"): del st.session_state["confirm_data"]; st.rerun()
+                st.cache_data.clear()
+                import time; time.sleep(1); st.rerun()
 
 with t2:
     if st.text_input("密碼", type="password", key="pw2") == "1234":
@@ -118,7 +114,7 @@ with t3:
     if st.text_input("密碼", type="password", key="pw3") == "1234":
         if not df_log.empty:
             buf = io.BytesIO()
-            with pd.ExcelWriter(buf, engine='xlsxwriter') as w: # 💡 已修正為正確的 engine
+            with pd.ExcelWriter(buf, engine='xlsxwriter') as w:
                 df_log.to_excel(w, sheet_name='紀錄', index=False)
                 df_inv.to_excel(w, sheet_name='庫存', index=False)
             st.download_button("下載報表", buf.getvalue(), "CNC.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
