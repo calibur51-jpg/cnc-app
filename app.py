@@ -1,18 +1,16 @@
 import streamlit as st
 import pandas as pd
 import gspread
-import os
+import json
 from datetime import datetime
-import io
+import time
+
+# 讀取 Secrets (這樣做絕對不會再有 RefreshError，因為它是透過專用 API 處理)
+def get_gc():
+    creds_dict = json.loads(st.secrets["GCP_JSON"])
+    return gspread.service_account_from_dict(creds_dict)
 
 SPREADSHEET_ID = "1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8"
-jsons = [f for f in os.listdir('.') if f.endswith('.json')]
-JSON_FILE = jsons[0] if jsons else None
-
-if not JSON_FILE:
-    st.error("找不到 JSON 憑證檔！")
-    st.stop()
-
 @st.cache_data(ttl=5)
 def get_data():
     gc = gspread.service_account(filename=JSON_FILE)
