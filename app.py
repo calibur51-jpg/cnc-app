@@ -123,10 +123,34 @@ with t3:
     if st.text_input("密碼", type="password", key="pw3") == "1234":
         st.header("📊 消耗分析與報表")
         
-        # 除錯區：強制顯示所有欄位名稱
-        st.write("目前讀取到的欄位名稱列表：")
-        st.write(df_log.columns.tolist()) 
-        
         if not df_log.empty:
-            st.success("請看上面列表，找到那個對應機台的欄位名稱（例如 '機台編號' 或 '設備'）")
+            # 確保資料格式正確
+            df_log["數量"] = pd.to_numeric(df_log["數量"], errors='coerce').fillna(0)
+            
+            # 對應你提供的欄位名稱：機台資訊在「備註」中，人員在「經辦人員」中，原因在「原因類型」中
+            c1, c2, c3 = st.columns(3)
+            with c1: 
+                st.markdown("**機台消耗排行**")
+                st.bar_chart(df_log.groupby("備註")["數量"].sum())
+            with c2: 
+                st.markdown("**人員領用統計**")
+                st.bar_chart(df_log.groupby("經辦人員")["數量"].sum())
+            with c3: 
+                st.markdown("**原因分析統計**")
+                st.bar_chart(df_log.groupby("原因類型")["數量"].sum())
+            
+            # 報表匯出
+            buf = io.BytesIO()
+            with pd.ExcelWriter(buf) as w:
+                df_log.to_excel(w, sheet_name='紀錄', index=False)
+                df_inv.to_excel(w, sheet_name='庫存', index=False)
+            st.download_button(
+                "📥 下載完整報表 (Excel)", 
+                buf.getvalue(), 
+                "CNC_Report.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+        
+        st.markdown("---")
+        st.header("📜 完整歷史紀錄")
         st.dataframe(df_log, use_container_width=True)
