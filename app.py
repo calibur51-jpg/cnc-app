@@ -127,22 +127,29 @@ with t3:
             df_log["數量"] = pd.to_numeric(df_log["數量"], errors='coerce').fillna(0)
             df_usage = df_log[df_log["動作"] == "領用"].copy()
             
-            # 統計圖表 (只統計領用)
+            # 統計圖表 (只統計領用，原因欄位已對應為「原因類型」)
             if not df_usage.empty:
                 c1, c2, c3 = st.columns(3)
                 with c1: 
-                    st.markdown("**機台消耗排行**"); st.bar_chart(df_usage.groupby("備註")["數量"].sum())
+                    st.markdown("**機台消耗排行**")
+                    st.bar_chart(df_usage.groupby("備註")["數量"].sum())
                 with c2: 
-                    st.markdown("**人員領用統計**"); st.bar_chart(df_usage.groupby("經辦人員")["數量"].sum())
+                    st.markdown("**人員領用統計**")
+                    st.bar_chart(df_usage.groupby("經辦人員")["數量"].sum())
                 with c3: 
-                    st.markdown("**原因分析統計**"); st.bar_chart(df_usage.groupby("原因類型")["數量"].sum())
+                    st.markdown("**原因分析統計**")
+                    # 這裡對應你 T1 的選單：正常磨損、斷刀、架機、其他
+                    st.bar_chart(df_usage.groupby("原因類型")["數量"].sum())
 
             st.markdown("---")
             st.header("📜 歷史紀錄篩選")
             
-            # 💡 新增篩選功能：快速選出正常換刀、異常崩刃等
-            all_reasons = df_log["原因類型"].unique().tolist()
-            selected_reasons = st.multiselect("篩選原因 (可多選):", all_reasons, default=all_reasons)
+            # 💡 篩選器：對應你 T1 的原因分類
+            all_reasons = ["正常磨損", "斷刀", "架機", "其他"]
+            # 確保篩選器顯示的項目存在於資料中
+            available_reasons = [r for r in all_reasons if r in df_log["原因類型"].unique()]
+            
+            selected_reasons = st.multiselect("篩選原因 (可多選):", available_reasons, default=available_reasons)
             
             # 依據篩選結果過濾顯示
             df_filtered = df_log[df_log["原因類型"].isin(selected_reasons)]
