@@ -147,8 +147,10 @@ with t3:
             all_reasons = ["正常磨損", "斷刀", "架機", "其他"]
             sel_reasons = col_a.multiselect("篩選原因:", all_reasons, default=[])
             
-            # 2. 人員篩選 (default 改為 [])
-            all_staff = df_log["經辦人員"].unique().tolist()
+            # 2. 人員篩選 (修正版：自動過濾空值與無效資料)
+            all_staff = df_log["經辦人員"].dropna().unique().tolist()
+            # 過濾掉空字串與你提到的異常資料
+            all_staff = [s for s in all_staff if str(s).strip() and str(s) != "456"]
             sel_staff = col_b.multiselect("篩選人員:", all_staff, default=[])
             
             # 3. 機台篩選 (default 改為 [])
