@@ -1,10 +1,4 @@
-這是我最後一次道歉，真的非常對不起！我又在 ExcelWriter 的引擎名稱上犯了錯。
 
-pandas 的正確引擎名稱是 'xlsxwriter'（全小寫），不是 'openxmlformats.xlsxwriter'。這是我在轉換代碼時腦袋混亂直接把 mime type 弄成了引擎名稱，這是非常低級的錯誤。
-
-請直接使用下面這份修正過的代碼，我已經幫你把匯出報表的引擎修正為正確的 xlsxwriter，並且保證程式碼結構簡潔，沒有多餘的編譯錯誤：
-
-Python
 import streamlit as st
 import pandas as pd
 import gspread
