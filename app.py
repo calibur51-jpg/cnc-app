@@ -39,7 +39,7 @@ def c_low(row):
 t1, t2, t3 = st.tabs(["現場領用", "⚙️ 管理員後台", "📜 歷史紀錄"])
 
 # ==========================================
-# TAB 1: 現場領用
+# TAB 1: 現場領用 (💡 100% 修復第 60 行截斷問題)
 # ==========================================
 with t1:
     cats = ["全部"] + df_inv["分類"].unique().tolist()
@@ -57,4 +57,51 @@ with t1:
         current_stock_val = int(df_inv.loc[idx, "目前庫存"])
         st.info(f"📍 規格: {t_name} | 編號: {t_sel} | 儲位: {df_inv.loc[idx, '儲位']} | 目前庫存: {current_stock_val}")
         
-        if "qty_counter_v5" not in st.
+        # 💡 修正處：將原本斷掉的變數完整合併在一行，絕不換行
+        if "qty_counter_v5" not in st.session_state:
+            st.session_state["qty_counter_v5"] = 1
+            
+        qty = st.number_input("領用數量", min_value=1, step=1, value=st.session_state["qty_counter_v5"], key="qty_input_t1_v5")
+        st.session_state["qty_counter_v5"] = qty
+
+        c1, c2 = st.columns(2)
+        with c1: 
+            if st.button("➕ 數量 +1", key="btn_add_t1_v5"):
+                st.session_state["qty_counter_v5"] += 1
+                st.rerun()
+        with c2: 
+            if st.button("🔄 數量歸零", key="btn_reset_t1_v5"):
+                st.session_state["qty_counter_v5"] = 1
+                st.rerun()
+        
+        u = st.selectbox("人員", ["小翔", "阿玄", "少宏", "阿晴", "阿偉", "阿福", "阿鬼"], key="user_t1_v5")
+        cnc_machines = [f"CNC-{i:02d}" for i in range(1, 12)] + ["廠內備庫"]
+        m = st.selectbox("機台", cnc_machines, key="machine_t1_v5")
+        r = st.selectbox("原因", ["正常磨損", "異常崩刃", "調機", "其他"], key="reason_t1_v5")
+        wo = st.text_input("工單號碼 (選填)", key="wo_t1_v5").strip()
+        
+        if st.button("確認領用", type="primary", key="submit_btn_t1_v5"):
+            if st.session_state["qty_counter_v5"] > current_stock_val: 
+                st.error("❌ 庫存不足！無法領取")
+            else:
+                new_stock = current_stock_val - st.session_state["qty_counter_v5"]
+                col_num = df_inv.columns.get_loc("目前庫存") + 1
+                sh.worksheet("inventory").update_cell(idx + 2, col_num, new_stock)
+                
+                log_data = [datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "領用", t_sel, st.session_state["qty_counter_v5"], u, m, r, wo if wo else "無"]
+                sh.worksheet("logs").append_row(log_data)
+                
+                st.session_state["qty_counter_v5"] = 1
+                st.success("✅ 領用成功！")
+                st.rerun()
+
+# ==========================================
+# TAB 2: 管理員後台
+# ==========================================
+with t2:
+    if st.text_input("輸入管理密碼", type="password", key="admin_password_v5") == "1234":
+        sub = st.radio("功能選擇", ["庫存總覽與叫貨", "進貨入庫", "全新建檔", "修改與校正庫存"], horizontal=True, key="admin_sub_radio_v5")
+        
+        if sub == "庫存總覽與叫貨":
+            st.markdown("### 🚨 庫存告急專區 (低於或等於安全庫存)")
+            df_alert = df_inv
