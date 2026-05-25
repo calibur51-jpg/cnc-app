@@ -1,13 +1,1 @@
-{
-  "type": "service_account",
-  "project_id": "cnc-system-497409",
-  "private_key_id": "64ccd035a4d1152f16007c13a779e58b538bc5c0",
-  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQDew94XflZwGltT\noIcU6g8AgV60gUZmFeoXuMul1nH9CXxqafDHD05you2CsJe7k6dQMFTSKJfpsGJZ\nbOF94v4D4+evGWIirD9T1mSQHRBdrIU5uIxMTdn7xNyXQ6OT25SLR+iWKFgtxiBJ\nKlfKIYEvRi3NR9+wggZPUHxjTa4nE7hdrZPNQgFqwhRomYOJL/Ei5s2Uz1Mf8xWr\nUg9hRa+IMSPpWtV539fwXMK3iJDq56E0wHMvLGBbJHgfxKgDq13BgH8fpOTibW41\nHKstS7+KtkudEjXIzZRLQOGb4+roSvoWNIm6X0u5huSPbrh+WT8F+gqJ6mYjVPA2\nzuPQDcKrAgMBAAECggEAA9itJj0ZaciEUmAizpE9pRKWyG/nzHqmyhx38VGC/ycb\nLaZncLVEJrKT5OSYgIKlXVSx6KPbmHHIbcB1iRW5F4DnggLil03frtqBOtCY21hp\nP6/lRd2ddlcJDNhiikdv7yyH4l/b9essqSONoU3Z/y9eoLBgnZmav+MLfGN3YfFR\nYQCgvYGKonzjajGntRZJZRlhzI7iQmHYBI9kgpGJpjJV/A+3F//4JgCAB31QBfYE\ntQzwhmFI5S8lIS539w928AF46uUNm2KJ5d9Q3vXEO6XJnsZPkisowcVFKcCRRqRb\nfOQxzuNrqloGbaf7idZNfoqGmbdW7ySU8HRtftvToQKBgQDyf1Do1rhmAz0DT4GP\nhp0GQ2oT85TrR0eFZkKYXVTaZqe3ZSk3jgor4dTfVCY8DbHovqEkKco5kr4F1yuy\n/WaPylnEKv78zep+SOgWZF3x1TcZMozqVd4+f/cu+V+jSjC696bADb6IBx1ZKnJP\naWHMOqcfPyyyenYRN2pBEaHx6QKBgQDrK0cwaE/Xe+XS9QRWv8rpvrwL/Y5JhE8U\n1rQwQozKVQeeSYhogVt5qNpRm+i7Gkg16Xz5Bvb+IvkP2HqnlHgdFY3czo7O6jgV\nBYoy5rzCQjTMNvTK18IPokoHjk6/bQx2ZgX7puuoDt+7EKVEvsOoWu3afw7/M4W3\n8T0aLD//cwKBgQCcUSHQ1gkMCW5dIfU8lePG09Ifhlcqy0n5Xg/zs8Ys+xuGBvno\ny/EWlH7qb44uDA3xIGEztJSdRFCl5yxONzbT3fa7k5PHVt2gBlNFi/FbILxhy8o2\njJ+03jxy1WGnGv4Kp/Wfu7xkZ2GtxsTlF+NpCS4N4GVpr7NIKdael0UzcQKBgQDC\nlNKYeRbnAvsMa/MlHBh3A3xwp2Gd7r3ITkZVUBtSJrzg+ZLGdZIMveu2brxIY9yv\nzvu6yUqAyMsvkz0Zf71Kw1TYCIkdJ6szqZvJtiUkzscE2cv+Mju919hNHDCIL2CK\nbqwwptKCAZyZGZLFqNoXaPU5PrxX6HeR1SdrioWBhQKBgQDs+8bPfs7WpxuoQO/n\ntZdmM4O3j+wkRt4WL3ID2so49f81iep0SXeJVwN9jxfxBmQLbfd4+Hffd/lZYPlz\nqBkSMKgYB4UQRviVh4VxL9QJ1VQiB3KtKav39W1MJO5JJg/hpEP6tiamJaCBTKeA\n27ixAC0DuHLF6/sp79cXdTKiLA==\n-----END PRIVATE KEY-----\n",
-  "client_email": "streamlit-cnc@cnc-system-497409.iam.gserviceaccount.com",
-  "client_id": "107256542466649214202",
-  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-  "token_uri": "https://oauth2.googleapis.com/token",
-  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/streamlit-cnc%40cnc-system-497409.iam.gserviceaccount.com",
-  "universe_domain": "googleapis.com"
-}
+
