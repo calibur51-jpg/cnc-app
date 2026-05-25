@@ -44,10 +44,16 @@ with t1:
     cats = ["全部"] + df_inv["分類"].unique().tolist()
     cat_sel = st.selectbox("請先選擇大分類", cats)
     df_f = df_inv if cat_sel == "全部" else df_inv[df_inv["分類"] == cat_sel]
-    t_sel = st.selectbox("選擇刀具編號", df_f["刀具編號"].tolist())
-    idx = df_inv[df_inv["刀具編號"] == t_sel].index[0]
-    st.text(f"規格: {df_inv.loc[idx, '品名規格']} | 儲位: {df_inv.loc[idx, '儲位']}")
-    qty = st.number_input("數量", min_value=1, step=1, key="qty_in")
+    
+    
+    tool_list = df_f["品名規格"].tolist()
+    t_name = st.selectbox("請選擇刀具名稱", tool_list)
+    
+    
+    idx = df_inv[df_inv["品名規格"] == t_name].index[0]
+    t_sel = df_inv.loc[idx, "刀具編號"] 
+    
+    st.text(f"編號: {t_sel} | 儲位: {df_inv.loc[idx, '儲位']}")
     
     c1, c2 = st.columns(2)
     with c1: 
