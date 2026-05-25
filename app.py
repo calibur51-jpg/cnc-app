@@ -19,13 +19,16 @@ def get_data():
     sh = gc.open_by_key(SPREADSHEET_ID)
     inv = pd.DataFrame(sh.worksheet("inventory").get_all_records())
     log = pd.DataFrame(sh.worksheet("logs").get_all_records())
-    return inv, log
+    # 新增這兩行來讀取設定分頁
+    settings_data = sh.worksheet("Settings").get_all_records()
+    df_set = pd.DataFrame(settings_data)
+    return inv, log, df_set
 
 def get_sh():
     gc = gspread.service_account(filename=JSON_FILE)
     return gc.open_by_key(SPREADSHEET_ID)
 
-df_inv, df_log = get_data()
+df_inv, df_log, df_set = get_data()
 
 st.set_page_config(page_title="CNC", layout="wide")
 st.title("CNC 刀具系統")
@@ -53,7 +56,13 @@ with t1:
             if st.button("🔄 歸1", key="b_res"): st.session_state["q_val"] = 1; st.rerun()
         qty = st.number_input("數量", min_value=1, value=st.session_state["q_val"])
         st.session_state["q_val"] = qty
-        u, m, r = st.selectbox("人員", ["小翔","阿玄","少宏","阿晴","阿偉","阿福","阿鬼"]), st.selectbox("機台", [f"CNC-{i:02d}" for i in range(1,12)]+["備庫"]), st.selectbox("原因", ["正常磨損", "斷刀", "架機", "其他"])
+        # 從 df_set 動態抓取清單，並過濾空值
+        u_list = df_set["人員"].replace("", pd.NA).dropna().unique().tolist()
+        m_list = df_set["機台"].replace("", pd.NA).dropna().tolist()
+
+        u = st.selectbox("人員", u_list)
+        m = st.selectbox("機台", m_list)
+        r = st.selectbox("原因", ["正常磨損", "斷刀", "架機", "其他"])
         wo = st.text_input("工單").strip()
         if st.button("確認領用", type="primary", use_container_width=True):
             if qty > cur_stock:
