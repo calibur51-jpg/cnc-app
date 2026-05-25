@@ -71,4 +71,9 @@ with t1:
         wo = st.text_input("工單號碼 (選填)").strip()
         
         if st.button("確認領用", type="primary"):
-            if int(
+            # 💡 修正後閉合正確的庫存檢查邏輯
+            current_stock_val = int(df_inv.loc[idx, "目前庫存"])
+            if current_stock_val < qty: 
+                st.error("❌ 庫存不足！無法領取")
+            else:
+                new_stock = current_stock_val - qty
