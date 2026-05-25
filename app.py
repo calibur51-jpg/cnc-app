@@ -124,33 +124,33 @@ with t3:
         st.header("📊 消耗分析與報表")
         
         if not df_log.empty:
-            # 確保資料格式正確
             df_log["數量"] = pd.to_numeric(df_log["數量"], errors='coerce').fillna(0)
+            df_usage = df_log[df_log["動作"] == "領用"].copy()
             
-            # 對應你提供的欄位名稱：機台資訊在「備註」中，人員在「經辦人員」中，原因在「原因類型」中
-            c1, c2, c3 = st.columns(3)
-            with c1: 
-                st.markdown("**機台消耗排行**")
-                st.bar_chart(df_log.groupby("備註")["數量"].sum())
-            with c2: 
-                st.markdown("**人員領用統計**")
-                st.bar_chart(df_log.groupby("經辦人員")["數量"].sum())
-            with c3: 
-                st.markdown("**原因分析統計**")
-                st.bar_chart(df_log.groupby("原因類型")["數量"].sum())
+            # 統計圖表 (只統計領用)
+            if not df_usage.empty:
+                c1, c2, c3 = st.columns(3)
+                with c1: 
+                    st.markdown("**機台消耗排行**"); st.bar_chart(df_usage.groupby("備註")["數量"].sum())
+                with c2: 
+                    st.markdown("**人員領用統計**"); st.bar_chart(df_usage.groupby("經辦人員")["數量"].sum())
+                with c3: 
+                    st.markdown("**原因分析統計**"); st.bar_chart(df_usage.groupby("原因類型")["數量"].sum())
+
+            st.markdown("---")
+            st.header("📜 歷史紀錄篩選")
+            
+            # 💡 新增篩選功能：快速選出正常換刀、異常崩刃等
+            all_reasons = df_log["原因類型"].unique().tolist()
+            selected_reasons = st.multiselect("篩選原因 (可多選):", all_reasons, default=all_reasons)
+            
+            # 依據篩選結果過濾顯示
+            df_filtered = df_log[df_log["原因類型"].isin(selected_reasons)]
+            st.dataframe(df_filtered, use_container_width=True)
             
             # 報表匯出
             buf = io.BytesIO()
             with pd.ExcelWriter(buf) as w:
                 df_log.to_excel(w, sheet_name='紀錄', index=False)
                 df_inv.to_excel(w, sheet_name='庫存', index=False)
-            st.download_button(
-                "📥 下載完整報表 (Excel)", 
-                buf.getvalue(), 
-                "CNC_Report.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-        
-        st.markdown("---")
-        st.header("📜 完整歷史紀錄")
-        st.dataframe(df_log, use_container_width=True)
+            st.download_button("📥 下載完整報表 (Excel)", buf.getvalue(), "CNC_Report.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
