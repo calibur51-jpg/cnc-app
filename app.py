@@ -127,32 +127,41 @@ with t3:
             df_log["數量"] = pd.to_numeric(df_log["數量"], errors='coerce').fillna(0)
             df_usage = df_log[df_log["動作"] == "領用"].copy()
             
-            # 統計圖表 (只統計領用，原因欄位已對應為「原因類型」)
+            # --- 圖表區 ---
             if not df_usage.empty:
                 c1, c2, c3 = st.columns(3)
                 with c1: 
-                    st.markdown("**機台消耗排行**")
-                    st.bar_chart(df_usage.groupby("備註")["數量"].sum())
+                    st.markdown("**機台消耗排行**"); st.bar_chart(df_usage.groupby("備註")["數量"].sum())
                 with c2: 
-                    st.markdown("**人員領用統計**")
-                    st.bar_chart(df_usage.groupby("經辦人員")["數量"].sum())
+                    st.markdown("**人員領用統計**"); st.bar_chart(df_usage.groupby("經辦人員")["數量"].sum())
                 with c3: 
-                    st.markdown("**原因分析統計**")
-                    # 這裡對應你 T1 的選單：正常磨損、斷刀、架機、其他
-                    st.bar_chart(df_usage.groupby("原因類型")["數量"].sum())
+                    st.markdown("**原因分析統計**"); st.bar_chart(df_usage.groupby("原因類型")["數量"].sum())
 
             st.markdown("---")
-            st.header("📜 歷史紀錄篩選")
+            st.header("📜 歷史紀錄進階篩選")
             
-            # 💡 篩選器：對應你 T1 的原因分類
+            # --- 進階篩選區 ---
+            col_a, col_b, col_c = st.columns(3)
+            
+            # 1. 原因篩選
             all_reasons = ["正常磨損", "斷刀", "架機", "其他"]
-            # 確保篩選器顯示的項目存在於資料中
-            available_reasons = [r for r in all_reasons if r in df_log["原因類型"].unique()]
+            sel_reasons = col_a.multiselect("篩選原因:", all_reasons, default=all_reasons)
             
-            selected_reasons = st.multiselect("篩選原因 (可多選):", available_reasons, default=available_reasons)
+            # 2. 人員篩選
+            all_staff = df_log["經辦人員"].unique().tolist()
+            sel_staff = col_b.multiselect("篩選人員:", all_staff, default=all_staff)
             
-            # 依據篩選結果過濾顯示
-            df_filtered = df_log[df_log["原因類型"].isin(selected_reasons)]
+            # 3. 機台篩選 (從備註欄位抓取)
+            all_machines = df_log["備註"].unique().tolist()
+            sel_machines = col_c.multiselect("篩選機台:", all_machines, default=all_machines)
+            
+            # --- 綜合過濾邏輯 ---
+            df_filtered = df_log[
+                (df_log["原因類型"].isin(sel_reasons)) & 
+                (df_log["經辦人員"].isin(sel_staff)) & 
+                (df_log["備註"].isin(sel_machines))
+            ]
+            
             st.dataframe(df_filtered, use_container_width=True)
             
             # 報表匯出
