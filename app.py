@@ -5,12 +5,14 @@ import json
 from datetime import datetime
 import time
 
-# 讀取 Secrets (這樣做絕對不會再有 RefreshError，因為它是透過專用 API 處理)
+# --- 讀取 Secrets (這是最穩定的方式) ---
 def get_gc():
+    # 這行會從 Streamlit Cloud 的 Secrets 抓取 GCP_JSON
     creds_dict = json.loads(st.secrets["GCP_JSON"])
     return gspread.service_account_from_dict(creds_dict)
 
 SPREADSHEET_ID = "1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8"
+
 @st.cache_data(ttl=5)
 def get_data():
     gc = gspread.service_account(filename=JSON_FILE)
