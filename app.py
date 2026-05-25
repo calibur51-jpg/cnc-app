@@ -54,8 +54,20 @@ with t1:
         idx = df_inv[df_inv["品名規格"] == t_name].index[0]
         t_sel = df_inv.loc[idx, "刀具編號"]
         
-        current_stock_val = int(df_inv.loc[idx, "目前庫存"])
+        current_stock_val = int(df_inv.loc[idx, "開目前庫存" if "開目前庫存" in df_inv.columns else "目前庫存"])
         st.info(f"📍 規格: {t_name} | 編號: {t_sel} | 儲位: {df_inv.loc[idx, '儲位']} | 目前庫存: {current_stock_val}")
         
         if "qty_counter" not in st.session_state:
-            st.session_state
+            st.session_state["qty_counter"] = 1
+            
+        qty = st.number_input("數量", min_value=1, step=1, value=st.session_state["qty_counter"], key="qty_display_box")
+        st.session_state["qty_counter"] = qty
+
+        c1, c2 = st.columns(2)
+        with c1: 
+            if st.button("➕ 領用數量 +1", key="real_btn_add"):
+                st.session_state["qty_counter"] += 1
+                st.rerun()
+        with c2: 
+            if st.button("🔄 數量歸零 (回1)", key="real_btn_reset"):
+                st.session_state
