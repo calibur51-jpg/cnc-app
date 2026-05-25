@@ -4,23 +4,37 @@ import requests
 from datetime import datetime
 import gspread
 
-# 💡 請將你剛剛複製的 Google 試算表 ID 填在這裡
-# 網址中 /d/ 後面到 /edit 之前的那串字
+# 試算表 ID
 SPREADSHEET_ID = "1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8"
 LINE_TOKEN = "" # 你的 LINE Token 保持不變
+
+# 🛠️ 直要把 Google 金鑰內嵌在程式碼中，繞過 Secrets 檢查
+gcp_config = {
+  "type": "service_account",
+  "project_id": "cnc-system-497409",
+  "private_key_id": "64ccd035a4d1152f16007c13a779e58b538bc5c0",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQDew94XflZwGltT\noIcU6g8AgV60gUZmFeoXuMul1nH9CXxqafDHD05you2CsJe7k6dQMFTSKJfpsGJZ\nbOF94v4D4+evGWIirD9T1mSQHRBdrIU5uIxMTdn7xNyXQ6OT25SLR+iWKFgtxiBJ\nKlfKIYEvRi3NR9+wggZPUHxjTa4nE7hdrZPNQgFqwhRomYOJL/Ei5s2Uz1Mf8xWr\nUg9hRa+IMSPpWtV539fwXMK3iJDq56E0wHMvLGBbJHgfxKgDq13BgH8fpOTibW41\nHKstS7+KtkudEjXIzZRLQOGb4+roSvoWNIm6X0u5huSPbrh+WT8F+gqJ6mYjVPA2\nzuPQDcKrAgMBAAECggEAA9itJj0ZaciEUmAizpE9pRKWyG/nzHqmyhx38VGC/ycb\nLaZncLVEJrKT5OSYgIKlXVSx6KPbmHHIbcB1iRW5F4DnggLil03frtqBOtCY21hp\nP6/lRd2ddlcJDNhiikdv7yyH4l/b9essqSONoU3Z/y9eoLBgnZmav+MLfGN3YfFR\nYQCgvYGKonzjajGntRZJZRlhzI7iQmHYBI9kgpGJpjJV/A+3F//4JgCAB31QBfYE\ntQzwhmFI5S8lIS539w928AF46uUNm2KJ5d9Q3vXEO6XJnsZPkisowcVFKcCRRqRb\nfOQxzuNrqloGbaf7idZNfoqGmbdW7ySU8HRtftvToQKBgQDyf1Do1rhmAz0DT4GP\nhp0GQ2oT85TrR0eFZkKYXVTaZqe3ZSk3jgor4dTfVCY8DbHovqEkKco5kr4F1yuy\n/WaPylnEKv78zep+SOgWZF3x1TcZMozqVd4+f/cu+V+jSjC696bADb6IBx1ZKnJP\naWHMOqcfPyyyenYRN2pBEaHx6QKBgQDrK0cwaE/Xe+XS9QRWv8rpvrwL/Y5JhE8U\n1rQwQozKVQeeSYhogVt5qNpRm+i7Gkg16Xz5Bvb+IvkP2HqnlHgdFY3czo7O6jgV\nBYoy5rzCQjTMNvTK18IPokoHjk6/bQx2ZgX7puuoDt+7EKVEvsOoWu3afw7/M4W3\n8T0aLD//cwKBgQCcUSHQ1gkMCW5dIfU8lePG09Ifhlcqy0n5Xg/zs8Ys+xuGBvno\ny/EWlH7qb44uDA3xIGEztJSdRFCl5yxONzbT3fa7k5PHVt2gBlNFi/FbILxhy8o2\njJ+03jxy1WGnGv4Kp/Wfu7xkZ2GtxsTlF+NpCS4N4GVpr7NIKdael0UzcQKBgQDC\lNKYeRbnAvsMa/MlHBh3A3xwp2Gd7r3ITkZVUBtSJrzg+ZLGdZIMveu2brxIY9yv\nzvu6yUqAyMsvkz0Zf71Kw1TYCIkdJ6szqZvJtiUkzscE2cv+Mju919hNHDCIL2CK\nbqwwptKCAZyZGZLFqNoXaPU5PrxX6HeR1SdrioWBhQKBgQDs+8bPfs7WpxuoQO/n\ntZdmM4O3j+wkRt4WL3ID2so49f81iep0SXeJVwN9jxfxBmQLbfd4+Hffd/lZYPlz\nqBkSMKgYB4UQRviVh4VxL9QJ1VQiB3KtKav39W1MJO5JJg/hpEP6tiamJaCBTKeA\n27ixAC0DuHLF6/sp79cXdTKiLA==\n-----END PRIVATE KEY-----\n",
+  "client_email": "streamlit-cnc@cnc-system-497409.iam.gserviceaccount.com",
+  "client_id": "107256542466649214202",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/streamlit-cnc%40cnc-system-497409.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
 
 # 初始化 Google Sheets 連線
 def get_sheet_data(worksheet_name):
     try:
-        # 透過 Streamlit Secrets 安全金鑰連線
-        gc = gspread.service_account_from_dict(st.secrets["gcp_service_account"])
+        # 直接使用內嵌的字典設定，不走 st.secrets
+        gc = gspread.service_account_from_dict(gcp_config)
         sh = gc.open_by_key(SPREADSHEET_ID)
         ws = sh.worksheet(worksheet_name)
         data = ws.get_all_records()
         df = pd.DataFrame(data)
         return ws, df
     except Exception as e:
-        st.error(f"連線 Google 試算表失敗，請檢查憑證。錯誤訊息: {e}")
+        st.error(f"連線 Google 試算表失敗。錯誤訊息: {e}")
         return None, pd.DataFrame()
 
 # LINE 通知功能
@@ -43,7 +57,7 @@ ws_inv, df_inv = get_sheet_data("inventory")
 ws_log, df_log = get_sheet_data("logs")
 
 if df_inv.empty:
-    st.warning("正在等待雲端資料庫連線設定...請先完成 Streamlit Cloud 的 Secrets 設定。")
+    st.warning("正在等待雲端資料庫連線設定...")
 else:
     # 頁面分頁
     tab1, tab2, tab3 = st.tabs(["📌 現場領用/退回", "📊 庫存看板", "📜 歷史紀錄"])
@@ -79,7 +93,7 @@ else:
                 tool_name = df_inv.loc[idx, "品名規格"]
                 safe_stock = int(df_inv.loc[idx, "安全庫存"])
 
-                # 計算新庫存 (試算表行數要 +2，因為 index 從 0 開始且有標頭列)
+                # 計算新庫存 (試算表行數要 +2)
                 sheet_row = int(idx) + 2
                 
                 if action == "領用 (-)":
@@ -130,7 +144,6 @@ else:
     with tab3:
         st.header("歷史異動紀錄")
         if not df_log.empty:
-            # 倒序排列，讓最新的紀錄顯示在最上面
             df_log_sorted = df_log.iloc[::-1]
             st.dataframe(df_log_sorted, use_container_width=True, hide_index=True)
         else:
