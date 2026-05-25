@@ -3,6 +3,7 @@ import pandas as pd
 import gspread
 import os
 from datetime import datetime
+import io
 
 # ==========================================
 # 🛠️ 雲端設定
@@ -29,7 +30,7 @@ sh, df_inv, df_log = get_data()
 
 # 初始化頁面
 st.set_page_config(page_title="CNC", layout="wide")
-st.title("CNC 刀具智慧管理系統 (穩定版)")
+st.title("CNC 刀具智慧管理系統 (旗艦完全體)")
 
 # 低庫存標色邏輯
 def c_low(row): 
@@ -67,7 +68,7 @@ with t1:
         u = st.selectbox("人員", ["小翔", "阿玄", "少宏", "阿晴", "阿偉", "阿福", "阿鬼"], key="uk1")
         cnc_machines = [f"CNC-{i:02d}" for i in range(1, 12)] + ["廠內備庫"]
         m = st.selectbox("機台", cnc_machines, key="mk1")
-        r = st.selectbox("原因", ["正常磨損", "斷刀", "架機", "其他"], key="rk1")
+        r = st.selectbox("原因", ["正常磨損", "異常崩刃", "調機", "其他"], key="rk1")
         wo = st.text_input("工單號碼 (選填)").strip()
         
         if st.button("確認領用", type="primary"):
@@ -88,7 +89,6 @@ with t2:
     if st.text_input("輸入管理密碼", type="password") == "1234":
         sub = st.radio("功能選擇", ["庫存總覽與叫貨", "進貨入庫", "全新建檔", "修改與校正庫存"], horizontal=True)
         
-        # 1. 庫存總覽與 LINE 一鍵叫貨
         if sub == "庫存總覽與叫貨":
             st.markdown("### 🚨 庫存告急專區 (低於或等於安全庫存)")
             df_alert = df_inv[df_inv["目前庫存"].astype(int) <= df_inv["安全庫存"].astype(int)]
@@ -118,7 +118,6 @@ with t2:
                 df_view = df_view[df_view["品名規格"].str.contains(search_k, case=False) | df_view["刀具編號"].str.contains(search_k, case=False)]
             st.dataframe(df_view.style.apply(c_low, axis=1), hide_index=True, use_container_width=True)
 
-        # 2. 進貨入庫
         elif sub == "進貨入庫":
             st.markdown("### 📦 進貨入庫")
             t_in_name = st.selectbox("選擇進貨刀具品名", df_inv["品名規格"].tolist())
@@ -132,7 +131,6 @@ with t2:
                 st.success(f"✅ 已成功為 {t_in_name} 補入 {q_in} 個！")
                 st.rerun()
 
-        # 3. 全新建檔
         elif sub == "全新建檔":
             st.markdown("### 🆕 全新建檔")
             with st.form("new_tool_form"):
@@ -151,7 +149,6 @@ with t2:
                         st.success("🎉 全新建檔成功！")
                         st.rerun()
 
-        # 4. 修改與校正庫存功能
         elif sub == "修改與校正庫存":
             st.markdown("### 🔧 修改刀具基本資料與強制校正庫存")
             edit_name = st.selectbox("選擇你要修改的刀具", df_inv["品名規格"].tolist())
@@ -170,4 +167,4 @@ with t2:
                     row_num = e_idx + 2
                     sh.worksheet("inventory").update_cell(row_num, 1, ecat)
                     sh.worksheet("inventory").update_cell(row_num, 2, eid)
-                    sh.worksheet("inventory").update
+                    sh.worksheet("inventory").update_cell(row_num,
