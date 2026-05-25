@@ -75,7 +75,7 @@ with t1:
 with t2:
     if st.text_input("密碼", type="password", key="pw2") == "1234":
         sub = st.radio("功能", ["叫貨", "進貨", "建檔", "校正"], horizontal=True)
-    if sub == "叫貨":
+        if sub == "叫貨":
             alert = df_inv[df_inv["目前庫存"].astype(int) <= df_inv["安全庫存"].astype(int)]
             if alert.empty:
                 st.success("✅ 目前庫存水位安全！")
