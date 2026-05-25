@@ -5,9 +5,9 @@ import json
 from datetime import datetime
 import time
 
-# --- 讀取 Secrets (這是最穩定的方式) ---
+# --- 這是新的讀取方式 ---
 def get_gc():
-    # 這行會從 Streamlit Cloud 的 Secrets 抓取 GCP_JSON
+    # 這會去讀取你在 Streamlit Cloud 設定的 Secrets
     creds_dict = json.loads(st.secrets["GCP_JSON"])
     return gspread.service_account_from_dict(creds_dict)
 
@@ -15,17 +15,16 @@ SPREADSHEET_ID = "1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8"
 
 @st.cache_data(ttl=5)
 def get_data():
-    gc = gspread.service_account(filename=JSON_FILE)
+    gc = get_gc()  # 改用這個新函數
     sh = gc.open_by_key(SPREADSHEET_ID)
     inv = pd.DataFrame(sh.worksheet("inventory").get_all_records())
     log = pd.DataFrame(sh.worksheet("logs").get_all_records())
-    # 新增這兩行來讀取設定分頁
     settings_data = sh.worksheet("Settings").get_all_records()
     df_set = pd.DataFrame(settings_data)
     return inv, log, df_set
 
 def get_sh():
-    gc = gspread.service_account(filename=JSON_FILE)
+    gc = get_gc() # 改用這個新函數
     return gc.open_by_key(SPREADSHEET_ID)
 
 df_inv, df_log, df_set = get_data()
