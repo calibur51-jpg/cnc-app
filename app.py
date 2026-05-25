@@ -121,11 +121,36 @@ with t2:
 
 with t3:
     if st.text_input("密碼", type="password", key="pw3") == "1234":
+        st.header("📊 消耗分析與報表")
         if not df_log.empty:
+            # 確保數量為數值格式以利統計
+            df_log["數量"] = pd.to_numeric(df_log["數量"], errors='coerce').fillna(0)
+            
+            # 視覺化分析區塊
+            c1, c2, c3 = st.columns(3)
+            with c1: 
+                st.markdown("**機台消耗排行**")
+                st.bar_chart(df_log.groupby("機台")["數量"].sum())
+            with c2: 
+                st.markdown("**人員領用統計**")
+                st.bar_chart(df_log.groupby("人員")["數量"].sum())
+            with c3: 
+                st.markdown("**原因分析統計**")
+                st.bar_chart(df_log.groupby("原因")["數量"].sum())
+            
+            # 報表匯出區塊 (保留原本的 Excel 下載邏輯)
             buf = io.BytesIO()
-            # 💡 移除 engine 參數，自動選擇最適合的引擎
             with pd.ExcelWriter(buf) as w:
                 df_log.to_excel(w, sheet_name='紀錄', index=False)
                 df_inv.to_excel(w, sheet_name='庫存', index=False)
-            st.download_button("下載報表", buf.getvalue(), "CNC.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            st.download_button(
+                "📥 下載完整報表 (Excel)", 
+                buf.getvalue(), 
+                "CNC_Full_Report.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+        
+        # 原始紀錄表單
+        st.markdown("---")
+        st.header("📜 完整歷史紀錄")
         st.dataframe(df_log, use_container_width=True)
