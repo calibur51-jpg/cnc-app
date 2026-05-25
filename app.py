@@ -176,13 +176,17 @@ with t3:
             # --- 綜合過濾邏輯 ---
             df_filtered = df_log.copy()
             
-            # 篩選邏輯：使用 .astype(str) 確保格式一致，避免篩選失敗
+            # 字串比對 (轉成字串以防錯誤)
             if sel_reasons:
                 df_filtered = df_filtered[df_filtered["原因類型"].astype(str).isin([str(s) for s in sel_reasons])]
             if sel_staff:
                 df_filtered = df_filtered[df_filtered["經辦人員"].astype(str).isin([str(s) for s in sel_staff])]
             if sel_machines:
                 df_filtered = df_filtered[df_filtered["備註"].astype(str).isin([str(s) for s in sel_machines])]
+            
+            # 💡 工單搜尋邏輯 (模糊搜尋)
+            if search_wo:
+                df_filtered = df_filtered[df_filtered["工單"].astype(str).str.contains(search_wo, case=False, na=False)]
             
             st.dataframe(df_filtered, use_container_width=True)
             
