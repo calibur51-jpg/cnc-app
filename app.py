@@ -74,27 +74,31 @@ with t1:
 
 with t2:
     if st.text_input("密碼", type="password", key="pw2") == "1234":
+        # 💡 新增：後台總庫存瀏覽清單
+        with st.expander("📦 查看目前所有刀具庫存", expanded=False):
+            st.dataframe(df_inv, use_container_width=True)
+            
         sub = st.radio("功能", ["叫貨", "進貨", "建檔", "校正"], horizontal=True)
+        
         if sub == "叫貨":
+            # ... (原本的叫貨邏輯保持不變) ...
             alert = df_inv[df_inv["目前庫存"].astype(int) <= df_inv["安全庫存"].astype(int)]
             if alert.empty:
                 st.success("✅ 目前庫存水位安全！")
             else:
                 st.markdown("### 🚨 待叫貨刀具")
-                # 簡潔表格顯示
                 st.dataframe(alert[["品名規格", "刀具編號", "目前庫存", "安全庫存"]], hide_index=True)
                 
-                # 產生 LINE 文字
                 txt = "【CNC 刀具補貨需求】\n"
                 for _, row in alert.iterrows():
                     need = int(row['安全庫存']) * 2 - int(row['目前庫存'])
                     need = max(need, 5)
                     txt += f"{row['品名規格']} (編號:{row['刀具編號']}) 需求: {need} 支\n"
-                
-                # 放在一個小區塊裡，並且給一個專用的複製按鈕
                 st.code(txt, language=None)
                 st.success("👆 上方內容已幫你整理好，直接複製即可貼到 LINE")
+        
         elif sub == "進貨":
+            # ... (原本的進貨邏輯保持不變) ...
             t_in = st.selectbox("刀具", df_inv["品名規格"].tolist())
             q_in = st.number_input("數量", min_value=1, step=1)
             if st.button("確認進貨"):
@@ -102,13 +106,17 @@ with t2:
                 get_sh().worksheet("inventory").update_cell(idx_in+2, df_inv.columns.get_loc("目前庫存")+1, int(df_inv.loc[idx_in, "目前庫存"]) + q_in)
                 get_sh().worksheet("logs").append_row([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "進貨", df_inv.loc[idx_in,"刀具編號"], q_in, "管理", "補貨", "進貨", "無"])
                 st.success("成功"); st.cache_data.clear(); st.rerun()
+                
         elif sub == "建檔":
+            # ... (原本的建檔邏輯保持不變) ...
             with st.form("f_new"):
                 c, nid, nname, nloc = st.selectbox("分類", ["銑刀","圓鼻刀","球刀","粉末鑽頭","黑鑽","絲功","銑牙刀"]), st.text_input("編號"), st.text_input("品名"), st.text_input("儲位")
                 nstock, nsafe = st.number_input("庫存", min_value=0), st.number_input("安全", min_value=0)
                 if st.form_submit_button("確認"):
                     get_sh().worksheet("inventory").append_row([c, nid, nname, nloc, nstock, nsafe]); st.success("成功"); st.cache_data.clear(); st.rerun()
+                    
         elif sub == "校正":
+            # ... (原本的校正邏輯保持不變) ...
             e_name = st.selectbox("刀具", df_inv["品名規格"].tolist())
             e_idx = df_inv[df_inv["品名規格"] == e_name].index[0]
             with st.form("f_edit"):
