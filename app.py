@@ -1,3 +1,4 @@
+Python
 import streamlit as st
 import pandas as pd
 import gspread
@@ -156,3 +157,14 @@ with t2:
                     sh_r.worksheet("inventory").update_cell(r_n, 6, esaf)
                     st.success("成功")
                     st.cache_data.clear()
+                    st.rerun()
+
+with t3:
+    if st.text_input("密碼", type="password", key="pw3") == "1234":
+        if not df_log.empty:
+            buf = io.BytesIO()
+            with pd.ExcelWriter(buf, engine='openpyxl') as w:
+                df_log.to_excel(w, sheet_name='紀錄', index=False)
+                df_inv.to_excel(w, sheet_name='庫存', index=False)
+            st.download_button("下載報表", buf.getvalue(), "CNC.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        st.dataframe(df_log, use_container_width=True)
