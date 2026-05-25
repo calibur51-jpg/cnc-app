@@ -189,7 +189,7 @@ with t3:
             # 工單搜尋 (關鍵：確保欄位存在且只有輸入時才過濾)
             if search_wo and search_wo.strip() != "":
                 if "工單號碼" in df_filtered.columns:
-                    df_filtered = df_filtered[df_filtered["工單"].astype(str).str.contains(search_wo.strip(), case=False, na=False)]
+                    df_filtered = df_filtered[df_filtered["工單號碼"].astype(str).str.contains(search_wo.strip(), case=False, na=False)]
                 else:
                     st.error("系統未找到 '工單號碼' 欄位，請檢查 Google Sheet 表頭是否正確。")
             
