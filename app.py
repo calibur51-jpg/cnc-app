@@ -78,43 +78,8 @@ with t1:
                 st.error("❌ 庫存不足！無法領取")
             else:
                 new_stock = current_stock_val - qty
-                col_num = df_inv.columns.get_loc("目前庫存") + 1
+                col_num = df_inv.columns.get_loc("開目前庫存" if "開目前庫存" in df_inv.columns else "目前庫存") + 1
                 sh.worksheet("inventory").update_cell(idx + 2, col_num, new_stock)
                 
-                # 💡 確保 append_row 括號完整閉合
                 log_data = [datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "領用", t_sel, qty, u, m, r, wo if wo else "無"]
-                sh.worksheet("logs").append_row(log_data)
-                
-                st.success(f"✅ 領用成功！已扣除 {qty} 個")
-                st.rerun()
-
-# ==========================================
-# TAB 2: 管理員後台
-# ==========================================
-with t2:
-    if st.text_input("輸入管理密碼", type="password") == "1234":
-        sub = st.radio("功能選擇", ["庫存總覽與叫貨", "進貨入庫", "全新建檔", "修改與校正庫存"], horizontal=True)
-        
-        # 1. 庫存總覽與 LINE 一鍵叫貨
-        if sub == "庫存總覽與叫貨":
-            st.markdown("### 🚨 庫存告急專區 (低於或等於安全庫存)")
-            df_alert = df_inv[df_inv["目前庫存"].astype(int) <= df_inv["安全庫存"].astype(int)]
-            
-            if df_alert.empty:
-                st.success("✅ 目前所有刀具水位安全，沒有缺貨！")
-            else:
-                st.dataframe(df_alert.style.apply(c_low, axis=1), hide_index=True, use_container_width=True)
-                
-                line_text = f"【CNC 刀具補貨通知 - {datetime.now().strftime('%m/%d')}】\n親愛的廠商您好，我們需要增補以下刀具：\n"
-                for _, row in df_alert.iterrows():
-                    shortage = int(row['安全庫存']) * 2 - int(row['目前庫存'])
-                    if shortage <= 0: shortage = 5
-                    line_text += f"▪️ {row['品名規格']} (編號:{row['刀具編號']}) * 需求數量: {shortage} 支\n"
-                line_text += "再麻煩您安排出庫，謝謝！"
-                
-                st.text_area("📋 LINE 叫貨文字 (直接複製即可貼到 LINE)", value=line_text, height=180)
-            
-            st.write("---")
-            st.markdown("### 🔍 庫存分類總覽與搜尋")
-            cats_view = ["全部"] + df_inv["分類"].unique().tolist()
-            cat_
+                sh.worksheet("logs").append_row(
