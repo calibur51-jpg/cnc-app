@@ -53,7 +53,7 @@ with t1:
             if st.button("🔄 歸1", key="b_res"): st.session_state["q_val"] = 1; st.rerun()
         qty = st.number_input("數量", min_value=1, value=st.session_state["q_val"])
         st.session_state["q_val"] = qty
-        u, m, r = st.selectbox("人員", ["小翔","阿玄","少宏","阿晴","阿偉","阿福","阿鬼"]), st.selectbox("機台", [f"CNC-{i:02d}" for i in range(1,12)]+["備庫"]), st.selectbox("原因", ["正常磨損", "異常崩刃", "調機", "其他"])
+        u, m, r = st.selectbox("人員", ["小翔","阿玄","少宏","阿晴","阿偉","阿福","阿鬼"]), st.selectbox("機台", [f"CNC-{i:02d}" for i in range(1,12)]+["備庫"]), st.selectbox("原因", ["正常磨損", "斷刀", "架機", "其他"])
         wo = st.text_input("工單").strip()
         if st.button("確認領用", type="primary", use_container_width=True):
             if qty > cur_stock:
