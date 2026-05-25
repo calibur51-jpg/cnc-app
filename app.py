@@ -124,37 +124,33 @@ with t3:
         st.header("📊 消耗分析與報表")
         
         if not df_log.empty:
-            # 偵測正確的欄位名稱
-            st.write(f"目前讀取到的欄位：{df_log.columns.tolist()}") # 這是除錯用，會顯示你目前 Sheet 實際的欄位名稱
+            # 確保資料格式正確以便統計
+            df_log["數量"] = pd.to_numeric(df_log["數量"], errors='coerce').fillna(0)
             
-            # 假設欄位名稱可能有差異，請根據你 Sheet 裡實際的標題修改下方括號內的字
-            # 如果你的標題是「機台編號」，請把下面的 "機台" 改成 "機台編號"
-            try:
-                df_log["數量"] = pd.to_numeric(df_log["數量"], errors='coerce').fillna(0)
-                
-                c1, c2, c3 = st.columns(3)
-                # 使用變數取代硬編碼，方便你對照 Sheet 修改
-                col_m = "機台"  # 若 Sheet 是「設備」，請改成 "設備"
-                col_u = "人員"  # 若 Sheet 是「操作員」，請改成 "操作員"
-                col_r = "原因"
-                
-                with c1: 
-                    st.markdown(f"**{col_m}消耗排行**")
-                    st.bar_chart(df_log.groupby(col_m)["數量"].sum())
-                with c2: 
-                    st.markdown(f"**{col_u}領用統計**")
-                    st.bar_chart(df_log.groupby(col_u)["數量"].sum())
-                with c3: 
-                    st.markdown(f"**{col_r}統計**")
-                    st.bar_chart(df_log.groupby(col_r)["數量"].sum())
-            except KeyError as e:
-                st.error(f"找不到欄位：{e}。請檢查 Google Sheet 'logs' 工作表的第一行標題是否與程式碼中的名稱完全一致。")
+            # 使用與 T1/T2 一致的欄位名稱進行分組統計
+            c1, c2, c3 = st.columns(3)
+            with c1: 
+                st.markdown("**機台消耗排行**")
+                st.bar_chart(df_log.groupby("機台")["數量"].sum())
+            with c2: 
+                st.markdown("**人員領用統計**")
+                st.bar_chart(df_log.groupby("人員")["數量"].sum())
+            with c3: 
+                st.markdown("**原因分析統計**")
+                st.bar_chart(df_log.groupby("原因")["數量"].sum())
             
+            # 下載功能
             buf = io.BytesIO()
             with pd.ExcelWriter(buf) as w:
                 df_log.to_excel(w, sheet_name='紀錄', index=False)
                 df_inv.to_excel(w, sheet_name='庫存', index=False)
-            st.download_button("📥 下載報表", buf.getvalue(), "CNC_Report.xlsx")
+            st.download_button(
+                "📥 下載完整報表 (Excel)", 
+                buf.getvalue(), 
+                "CNC_Report.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
         
         st.markdown("---")
+        st.header("📜 完整歷史紀錄")
         st.dataframe(df_log, use_container_width=True)
