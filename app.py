@@ -56,11 +56,21 @@ with t1:
         u, m, r = st.selectbox("人員", ["小翔","阿玄","少宏","阿晴","阿偉","阿福","阿鬼"]), st.selectbox("機台", [f"CNC-{i:02d}" for i in range(1,12)]+["備庫"]), st.selectbox("原因", ["正常磨損", "異常崩刃", "調機", "其他"])
         wo = st.text_input("工單").strip()
         if st.button("確認領用", type="primary", use_container_width=True):
-            if qty > cur_stock: st.error("❌ 庫存不足！")
+            if qty > cur_stock:
+                st.error("❌ 庫存不足！")
             else:
-                get_sh().worksheet("inventory").update_cell(idx+2, df_inv.columns.get_loc("目前庫存")+1, cur_stock - qty)
+                new_s = cur_stock - qty
+                get_sh().worksheet("inventory").update_cell(idx+2, df_inv.columns.get_loc("目前庫存")+1, new_s)
                 get_sh().worksheet("logs").append_row([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "領用", t_sel, qty, u, m, r, wo])
-                st.success(f"✅ 已領刀：{t_name} x {qty}"); st.session_state["q_val"] = 1; st.cache_data.clear(); st.rerun()
+                
+                # 這裡增加提示停留
+                st.success(f"✅ 已領刀：{t_name} x {qty}")
+                st.session_state["q_val"] = 1
+                st.cache_data.clear()
+                
+                import time
+                time.sleep(2) # 強制停留 2 秒，讓你絕對看得到
+                st.rerun()
 
 with t2:
     if st.text_input("密碼", type="password", key="pw2") == "1234":
