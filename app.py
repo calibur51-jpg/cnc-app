@@ -123,34 +123,10 @@ with t3:
     if st.text_input("密碼", type="password", key="pw3") == "1234":
         st.header("📊 消耗分析與報表")
         
-        if not df_log.empty:
-            # 確保資料格式正確以便統計
-            df_log["數量"] = pd.to_numeric(df_log["數量"], errors='coerce').fillna(0)
-            
-            # 使用與 T1/T2 一致的欄位名稱進行分組統計
-            c1, c2, c3 = st.columns(3)
-            with c1: 
-                st.markdown("**機台消耗排行**")
-                st.bar_chart(df_log.groupby("機台")["數量"].sum())
-            with c2: 
-                st.markdown("**人員領用統計**")
-                st.bar_chart(df_log.groupby("人員")["數量"].sum())
-            with c3: 
-                st.markdown("**原因分析統計**")
-                st.bar_chart(df_log.groupby("原因")["數量"].sum())
-            
-            # 下載功能
-            buf = io.BytesIO()
-            with pd.ExcelWriter(buf) as w:
-                df_log.to_excel(w, sheet_name='紀錄', index=False)
-                df_inv.to_excel(w, sheet_name='庫存', index=False)
-            st.download_button(
-                "📥 下載完整報表 (Excel)", 
-                buf.getvalue(), 
-                "CNC_Report.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+        # 除錯區：強制顯示所有欄位名稱
+        st.write("目前讀取到的欄位名稱列表：")
+        st.write(df_log.columns.tolist()) 
         
-        st.markdown("---")
-        st.header("📜 完整歷史紀錄")
+        if not df_log.empty:
+            st.success("請看上面列表，找到那個對應機台的欄位名稱（例如 '機台編號' 或 '設備'）")
         st.dataframe(df_log, use_container_width=True)
