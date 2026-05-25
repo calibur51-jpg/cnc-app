@@ -160,29 +160,29 @@ with t3:
             # --- 進階篩選區 ---
             col_a, col_b, col_c = st.columns(3)
             
-            # 1. 原因篩選 (default 改為 [])
+            # 1. 原因篩選 (維持原樣)
             all_reasons = ["正常磨損", "斷刀", "架機", "其他"]
             sel_reasons = col_a.multiselect("篩選原因:", all_reasons, default=[])
             
-            # 2. 人員篩選 (修正版：自動過濾空值與無效資料)
-            all_staff = df_log["經辦人員"].dropna().unique().tolist()
-            # 過濾掉空字串與你提到的異常資料
-            all_staff = [s for s in all_staff if str(s).strip() and str(s) != "456"]
+            # 2. 人員篩選 (從 df_set 動態抓取)
+            # 確保不會讀到空白行
+            all_staff = df_set["人員"].replace("", pd.NA).dropna().unique().tolist()
             sel_staff = col_b.multiselect("篩選人員:", all_staff, default=[])
             
-            # 3. 機台篩選 (default 改為 [])
-            all_machines = df_log["備註"].unique().tolist()
+            # 3. 機台篩選 (從 df_set 動態抓取)
+            all_machines = df_set["機台"].replace("", pd.NA).dropna().tolist()
             sel_machines = col_c.multiselect("篩選機台:", all_machines, default=[])
             
-            # --- 綜合過濾邏輯 (若未選，則顯示全部) ---
+            # --- 綜合過濾邏輯 ---
             df_filtered = df_log.copy()
             
+            # 篩選邏輯：使用 .astype(str) 確保格式一致，避免篩選失敗
             if sel_reasons:
-                df_filtered = df_filtered[df_filtered["原因類型"].isin(sel_reasons)]
+                df_filtered = df_filtered[df_filtered["原因類型"].astype(str).isin([str(s) for s in sel_reasons])]
             if sel_staff:
-                df_filtered = df_filtered[df_filtered["經辦人員"].isin(sel_staff)]
+                df_filtered = df_filtered[df_filtered["經辦人員"].astype(str).isin([str(s) for s in sel_staff])]
             if sel_machines:
-                df_filtered = df_filtered[df_filtered["備註"].isin(sel_machines)]
+                df_filtered = df_filtered[df_filtered["備註"].astype(str).isin([str(s) for s in sel_machines])]
             
             st.dataframe(df_filtered, use_container_width=True)
             
