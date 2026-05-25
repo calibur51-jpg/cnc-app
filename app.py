@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import gspread
@@ -46,7 +45,6 @@ with t1:
         idx = df_inv[df_inv["品名規格"] == t_name].index[0]
         t_sel = df_inv.loc[idx, "刀具編號"]
         cur_stock = int(df_inv.loc[idx, "目前庫存"])
-        
         st.info(f"編號:{t_sel} | 儲位:{df_inv.loc[idx, '儲位']} | 庫存:{cur_stock}")
         
         if "q_val" not in st.session_state: st.session_state["q_val"] = 1
@@ -82,7 +80,17 @@ with t2:
         sub = st.radio("功能", ["叫貨", "進貨", "建檔", "校正"], horizontal=True)
         if sub == "叫貨":
             alert = df_inv[df_inv["目前庫存"].astype(int) <= df_inv["安全庫存"].astype(int)]
-            st.dataframe(alert, hide_index=True) if not alert.empty else st.success("庫存安全")
+            # 💡 修正亂碼：明確區分顯示與邏輯
+            if alert.empty:
+                st.success("庫存安全")
+            else:
+                st.dataframe(alert, hide_index=True)
+                txt = "【叫貨】\n"
+                for _, row in alert.iterrows():
+                    need = int(row['安全庫存'])*2 - int(row['目前庫存'])
+                    need = max(need, 5)
+                    txt += f"{row['品名規格']} * {need}\n"
+                st.text_area("LINE", txt, height=150)
         elif sub == "進貨":
             t_in = st.selectbox("刀具", df_inv["品名規格"].tolist(), key="in1")
             idx_in = df_inv[df_inv["品名規格"] == t_in].index[0]
@@ -92,9 +100,7 @@ with t2:
                 new_s = int(df_inv.loc[idx_in, "目前庫存"]) + q_in
                 get_sh().worksheet("inventory").update_cell(idx_in+2, col_n, new_s)
                 get_sh().worksheet("logs").append_row([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "進貨", df_inv.loc[idx_in,"刀具編號"], q_in, "管理", "補貨", "進貨", "無"])
-                st.success("成功")
-                st.cache_data.clear()
-                st.rerun()
+                st.success("成功"); st.cache_data.clear(); st.rerun()
         elif sub == "建檔":
             with st.form("f_new"):
                 c, nid, nname, nloc = st.selectbox("分類", ["銑刀","圓鼻刀","球刀","粉末鑽頭","黑鑽","絲功","銑牙刀"]), st.text_input("編號"), st.text_input("品名"), st.text_input("儲位")
@@ -106,7 +112,12 @@ with t2:
             e_name = st.selectbox("刀具", df_inv["品名規格"].tolist(), key="e1")
             e_idx = df_inv[df_inv["品名規格"] == e_name].index[0]
             with st.form("f_edit"):
-                ec, eid, enm, eloc = st.selectbox("分類", ["銑刀","圓鼻刀","球刀","粉末鑽頭","黑鑽","絲功","銑牙刀"], index=0), st.text_input("編號", df_inv.loc[e_idx, '刀具編號']), st.text_input("品名", df_inv.loc[e_idx, '品名規格']), st.text_input("儲位", df_inv.loc[e_idx, '儲位'])
+                c_list = ["銑刀","圓鼻刀","球刀","粉末鑽頭","黑鑽","絲功","銑牙刀"]
+                c_idx = c_list.index(df_inv.loc[e_idx, '分類']) if df_inv.loc[e_idx, '分類'] in c_list else 0
+                ec = st.selectbox("分類", c_list, index=c_idx)
+                eid = st.text_input("編號", df_inv.loc[e_idx, '刀具編號'])
+                enm = st.text_input("品名", df_inv.loc[e_idx, '品名規格'])
+                eloc = st.text_input("儲位", df_inv.loc[e_idx, '儲位'])
                 estk, esaf = st.number_input("目前庫存", value=int(df_inv.loc[e_idx, '目前庫存'])), st.number_input("安全庫存", value=int(df_inv.loc[e_idx, '安全庫存']))
                 if st.form_submit_button("儲存"):
                     sh_r = get_sh()
