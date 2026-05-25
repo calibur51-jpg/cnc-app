@@ -75,10 +75,25 @@ with t1:
 with t2:
     if st.text_input("密碼", type="password", key="pw2") == "1234":
         sub = st.radio("功能", ["叫貨", "進貨", "建檔", "校正"], horizontal=True)
-        if sub == "叫貨":
+    if sub == "叫貨":
             alert = df_inv[df_inv["目前庫存"].astype(int) <= df_inv["安全庫存"].astype(int)]
-            if alert.empty: st.success("庫存安全")
-            else: st.dataframe(alert, hide_index=True)
+            if alert.empty:
+                st.success("✅ 目前庫存水位安全！")
+            else:
+                st.markdown("### 🚨 待叫貨刀具")
+                # 簡潔表格顯示
+                st.dataframe(alert[["品名規格", "刀具編號", "目前庫存", "安全庫存"]], hide_index=True)
+                
+                # 產生 LINE 文字
+                txt = "【CNC 刀具補貨需求】\n"
+                for _, row in alert.iterrows():
+                    need = int(row['安全庫存']) * 2 - int(row['目前庫存'])
+                    need = max(need, 5)
+                    txt += f"{row['品名規格']} (編號:{row['刀具編號']}) 需求: {need} 支\n"
+                
+                # 放在一個小區塊裡，並且給一個專用的複製按鈕
+                st.code(txt, language=None)
+                st.success("👆 上方內容已幫你整理好，直接複製即可貼到 LINE")
         elif sub == "進貨":
             t_in = st.selectbox("刀具", df_inv["品名規格"].tolist())
             q_in = st.number_input("數量", min_value=1, step=1)
