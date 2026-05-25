@@ -61,8 +61,12 @@ with t1:
     with c2: 
         if st.button("歸零"): st.session_state["qty_in"] = 1
     
-    u = st.selectbox("人員", ["張師傅", "李師傅", "王師傅", "劉課長"], key="uk1")
-    m = st.selectbox("機台", ["CNC-01", "CNC-02", "CNC-03", "CNC-04", "廠內備庫"], key="mk1")
+    # 修改現場師傅與機台的選單內容
+    u = st.selectbox("人員", ["小翔", "阿玄", "少宏", "阿晴", "阿偉", "阿福", "阿鬼"], key="uk1")
+    
+    # 產生 CNC-01 到 CNC-11 的自動清單
+    cnc_machines = [f"CNC-{i:02d}" for i in range(1, 12)] + ["廠內備庫"]
+    m = st.selectbox("機台", cnc_machines, key="mk1")
     r = st.selectbox("原因", ["正常磨損", "異常崩刃", "調機", "其他"], key="rk1")
     wo = st.text_input("工單號碼", key="wo_num")
     
