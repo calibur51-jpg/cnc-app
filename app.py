@@ -52,7 +52,7 @@ t1, t2, t3, t4 = st.tabs(["領用", "後台", "紀錄", "進貨與盤點系統"]
 with t1:
     st.header("🔪 刀具領用")
     
-    # --- 載入資料 (這行漏掉了，補上！) ---
+    # --- 載入資料 ---
     _, df_log, df_set = st.session_state.data
     
     # --- 1. 掃描區 ---
@@ -89,11 +89,14 @@ with t1:
     df_f = df_inv if cat_sel == "全部" else df_inv[df_inv["分類"] == cat_sel]
     t_list = df_f["品名規格"].tolist()
     
+    # 處理掃描後自動選取的邏輯
+    default_idx = 0
     if "target_name" in locals() and target_name in t_list:
         default_idx = t_list.index(target_name)
         
     t_name = st.selectbox("選擇領用刀具", t_list, index=default_idx, key="t1_tool")
     
+    # 取得選定刀具資訊
     idx = df_inv[df_inv["品名規格"] == t_name].index[0]
     t_sel = df_inv.loc[idx, "刀具編號"]
     cur_stock = int(df_inv.loc[idx, "目前庫存"])
@@ -102,6 +105,7 @@ with t1:
     
     # --- 3. 數量調整 ---
     if "q_val" not in st.session_state: st.session_state["q_val"] = 1
+    
     c1, c2 = st.columns(2)
     with c1: 
         if st.button("➕ 加1", key="b_add"): st.session_state["q_val"] += 1; st.rerun()
@@ -119,37 +123,29 @@ with t1:
     r = st.selectbox("原因", ["正常磨損", "斷刀", "架機", "其他"], key="t1_reason")
     wo = st.text_input("工單", key="t1_wo").strip()
     
-    # --- 5. 確認領用 ---
-   if st.button("確認領用", type="primary", use_container_width=True):
-            if qty > cur_stock:
-                st.error("❌ 庫存不足！")
-            else:
-                payload = {
-                    "action": "領用", "row": idx + 2, "t_sel": t_sel,
-                    "qty": qty, "u": u, "m": m, "r": r, "wo": wo
-                }
+    # --- 5. 確認領用 (含除錯功能) ---
+    if st.button("確認領用", type="primary", use_container_width=True):
+        if qty > cur_stock:
+            st.error("❌ 庫存不足！")
+        else:
+            payload = {
+                "action": "領用", "row": idx + 2, "t_sel": t_sel,
+                "qty": qty, "u": u, "m": m, "r": r, "wo": wo
+            }
+            try:
+                # 這裡確保使用全域的 WEBHOOK_URL
+                response = requests.post(WEBHOOK_URL, json=payload)
                 
-                # --- 除錯模式 ---
-                try:
-                    # 確認 URL 是否有值
-                    if 'WEBHOOK_URL' not in globals() and 'WEBHOOK_URL' not in locals():
-                        st.error("系統錯誤：WEBHOOK_URL 未定義！請檢查 app.py 最上方是否有填寫網址")
-                    else:
-                        response = requests.post(WEBHOOK_URL, json=payload)
-                        
-                        if response.status_code == 200:
-                            st.session_state.data[0].loc[idx, "目前庫存"] -= qty
-                            st.success(f"✅ 已領刀：{t_name} x {qty}")
-                            st.session_state["q_val"] = 1
-                            import time; time.sleep(1); st.rerun()
-                        else:
-                            # 關鍵除錯點：顯示 Google 回傳的錯誤訊息
-                            st.error(f"❌ 寫入失敗 (狀態碼: {response.status_code})")
-                            st.write("Google 回傳的詳細訊息：")
-                            st.code(response.text) # 把錯誤訊息印出來給我們看
-                            
-                except Exception as e:
-                    st.error(f"❌ 連線失敗: {str(e)}")
+                if response.status_code == 200:
+                    st.session_state.data[0].loc[idx, "目前庫存"] -= qty
+                    st.success(f"✅ 已領刀：{t_name} x {qty}")
+                    st.session_state["q_val"] = 1
+                    import time; time.sleep(1); st.rerun()
+                else:
+                    st.error(f"❌ 寫入失敗 (狀態碼: {response.status_code})")
+                    st.text(f"錯誤訊息: {response.text}") # 顯示 Google 回傳的錯誤
+            except Exception as e:
+                st.error(f"❌ 連線失敗: {str(e)}")
 with t2:
     st.header("🔒 管理員專區")
     pw = st.text_input("輸入管理員密碼", type="password", key="pw_t2")
