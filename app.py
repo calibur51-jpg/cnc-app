@@ -1,28 +1,16 @@
 import streamlit as st
 import pandas as pd
 import gspread
-from datetime import datetime
-import time
-
-from google.oauth2.service_account import Credentials
 
 def get_gc():
-    # 讀取 Secrets
-    creds_dict = json.loads(st.secrets["GCP_JSON"])
-    
-    # 定義需要的 Scope (必須包含這兩個權限)
-    scopes = [
-        "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/drive"
-    ]
-    
-    # 直接使用 Credentials 物件，這樣連線會更穩定
-    credentials = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-    return gspread.authorize(credentials)
+    # 直接傳入 st.secrets，它本身就是字典
+    return gspread.service_account_from_dict(dict(st.secrets))
 
-@st.cache_data(ttl=0)
+SPREADSHEET_ID = "1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8"
+
+@st.cache_data(ttl=0) # 強制關閉快取，避免錯誤殘留
 def get_data():
-    gc = get_gc()  # 改用這個新函數
+    gc = get_gc()
     sh = gc.open_by_key(SPREADSHEET_ID)
     inv = pd.DataFrame(sh.worksheet("inventory").get_all_records())
     log = pd.DataFrame(sh.worksheet("logs").get_all_records())
@@ -30,10 +18,7 @@ def get_data():
     df_set = pd.DataFrame(settings_data)
     return inv, log, df_set
 
-def get_sh():
-    gc = get_gc() # 改用這個新函數
-    return gc.open_by_key(SPREADSHEET_ID)
-
+# 初始化資料
 df_inv, df_log, df_set = get_data()
 
 st.set_page_config(page_title="CNC", layout="wide")
