@@ -1,8 +1,7 @@
 import streamlit as st
 import pandas as pd
 import gspread
-from google.oauth2 
-import service_account
+from google.oauth2 import service_account
 
 creds = service_account.Credentials.from_service_account_info(creds_dict)
 client = gspread.authorize(creds)
