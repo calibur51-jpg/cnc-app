@@ -58,11 +58,12 @@ FULL_JSON_DATA = {
 }
 
 # --- 3. 讀取邏輯 (快且穩) ---
+@st.cache_resource(ttl=60)
 def get_data():
     return pd.read_csv(INV_URL, encoding='utf-8-sig'), pd.read_csv(LOG_URL, encoding='utf-8-sig'), pd.read_csv(SET_URL, encoding='utf-8-sig')
 
 # --- 4. 寫入邏輯 (透過 API，僅在需要時連線) ---
-@st.cache_data(ttl=60)
+@st.cache_resource(ttl=60)
 def get_sh():
     # 1. 組裝金鑰內容
     pk_parts = [
