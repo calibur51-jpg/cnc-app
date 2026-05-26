@@ -204,65 +204,62 @@ with t2:
     else:
         st.info("請輸入管理員密碼以存取管理功能")
 with t3:
-    # --- 【關鍵修正】：確保 T3 區塊每次渲染時都讀取當下最新的 Session State ---
+    # --- 讀取最新數據 ---
     _, df_log, _ = st.session_state.data
     
     if st.text_input("密碼", type="password", key="pw3") == "1234":
-        st.header("📊 消耗分析與報表")
+        st.header("📊 刀具管理戰情室")
         
         if not df_log.empty:
-            # 確保欄位名稱正確 (這裡將數量強制轉數值)
             df_log["數量"] = pd.to_numeric(df_log["數量"], errors='coerce').fillna(0)
             df_usage = df_log[df_log["動作"] == "領用"].copy()
             
-            # --- 圖表區 ---
+            # --- 1. 數據摘要 (Dashboard Metrics) ---
+            c_m1, c_m2, c_m3 = st.columns(3)
+            c_m1.metric("總領用次數", len(df_usage))
+            c_m2.metric("總消耗數量", int(df_usage["數量"].sum()))
+            c_m3.metric("涵蓋機台數", df_usage["備註"].nunique())
+            
+            st.divider()
+
+            # --- 2. 圖表分析區 ---
             if not df_usage.empty:
-                c1, c2, c3 = st.columns(3)
-                with c1: 
+                st.subheader("📈 分析報表")
+                col1, col2, col3 = st.columns(3)
+                with col1: 
                     st.markdown("**機台消耗排行**")
                     st.bar_chart(df_usage.groupby("備註")["數量"].sum())
-                with c2: 
+                with col2: 
                     st.markdown("**人員領用統計**")
                     st.bar_chart(df_usage.groupby("經辦人員")["數量"].sum())
-                with c3: 
+                with col3: 
                     st.markdown("**原因分析統計**")
                     st.bar_chart(df_usage.groupby("原因類型")["數量"].sum())
 
-            st.markdown("---")
+            st.divider()
+            
+            # --- 3. 歷史紀錄進階篩選 ---
             st.header("📜 歷史紀錄進階篩選")
-            
-            # --- 進階篩選區 ---
             col_a, col_b, col_c = st.columns(3)
-            
-            # 這裡重新讀取一次設定資料以確保下拉選單是最新的
             _, _, df_set = st.session_state.data 
             
             all_reasons = ["正常磨損", "斷刀", "架機", "其他"]
-            sel_reasons = col_a.multiselect("篩選原因:", all_reasons, default=[])
-            
+            sel_reasons = col_a.multiselect("篩選原因:", all_reasons)
             all_staff = df_set["人員"].replace("", pd.NA).dropna().unique().tolist()
-            sel_staff = col_b.multiselect("篩選人員:", all_staff, default=[])
-            
+            sel_staff = col_b.multiselect("篩選人員:", all_staff)
             all_machines = df_set["機台"].replace("", pd.NA).dropna().tolist()
-            sel_machines = col_c.multiselect("篩選機台:", all_machines, default=[])
+            sel_machines = col_c.multiselect("篩選機台:", all_machines)
             
             search_wo = st.text_input("🔍 搜尋工單號碼 (選填):")
             
-            # --- 綜合過濾邏輯 ---
+            # 綜合過濾邏輯
             df_filtered = df_log.copy()
+            if sel_reasons: df_filtered = df_filtered[df_filtered["原因類型"].isin(sel_reasons)]
+            if sel_staff: df_filtered = df_filtered[df_filtered["經辦人員"].isin(sel_staff)]
+            if sel_machines: df_filtered = df_filtered[df_filtered["備註"].isin(sel_machines)]
+            if search_wo: df_filtered = df_filtered[df_filtered["工單號碼"].astype(str).str.contains(search_wo.strip(), case=False, na=False)]
             
-            if sel_reasons:
-                df_filtered = df_filtered[df_filtered["原因類型"].astype(str).isin([str(s) for s in sel_reasons])]
-            if sel_staff:
-                df_filtered = df_filtered[df_filtered["經辦人員"].astype(str).isin([str(s) for s in sel_staff])]
-            if sel_machines:
-                df_filtered = df_filtered[df_filtered["備註"].astype(str).isin([str(s) for s in sel_machines])]
-            
-            if search_wo and search_wo.strip() != "":
-                if "工單號碼" in df_filtered.columns:
-                    df_filtered = df_filtered[df_filtered["工單號碼"].astype(str).str.contains(search_wo.strip(), case=False, na=False)]
-            
-            st.dataframe(df_filtered, use_container_width=True)
+            st.dataframe(df_filtered.sort_values(by="時間", ascending=False), use_container_width=True)
             
             # 報表匯出
             buf = io.BytesIO()
