@@ -120,26 +120,36 @@ with t1:
     wo = st.text_input("工單", key="t1_wo").strip()
     
     # --- 5. 確認領用 ---
-    if st.button("確認領用", type="primary", use_container_width=True):
-        if qty > cur_stock:
-            st.error("❌ 庫存不足！")
-        else:
-            payload = {
-                "action": "領用", "row": idx + 2, "t_sel": t_sel,
-                "qty": qty, "u": u, "m": m, "r": r, "wo": wo
-            }
-            try:
-                # 請確認你的檔案最上方有 import requests
-                response = requests.post(WEBHOOK_URL, json=payload)
-                if response.status_code == 200:
-                    st.session_state.data[0].loc[idx, "目前庫存"] -= qty
-                    st.success(f"✅ 已領刀：{t_name} x {qty}")
-                    st.session_state["q_val"] = 1
-                    import time; time.sleep(1); st.rerun()
-                else:
-                    st.error("寫入失敗，請確認 Apps Script 部署")
-            except Exception as e:
-                st.error(f"連線失敗: {e}")
+   if st.button("確認領用", type="primary", use_container_width=True):
+            if qty > cur_stock:
+                st.error("❌ 庫存不足！")
+            else:
+                payload = {
+                    "action": "領用", "row": idx + 2, "t_sel": t_sel,
+                    "qty": qty, "u": u, "m": m, "r": r, "wo": wo
+                }
+                
+                # --- 除錯模式 ---
+                try:
+                    # 確認 URL 是否有值
+                    if 'WEBHOOK_URL' not in globals() and 'WEBHOOK_URL' not in locals():
+                        st.error("系統錯誤：WEBHOOK_URL 未定義！請檢查 app.py 最上方是否有填寫網址")
+                    else:
+                        response = requests.post(WEBHOOK_URL, json=payload)
+                        
+                        if response.status_code == 200:
+                            st.session_state.data[0].loc[idx, "目前庫存"] -= qty
+                            st.success(f"✅ 已領刀：{t_name} x {qty}")
+                            st.session_state["q_val"] = 1
+                            import time; time.sleep(1); st.rerun()
+                        else:
+                            # 關鍵除錯點：顯示 Google 回傳的錯誤訊息
+                            st.error(f"❌ 寫入失敗 (狀態碼: {response.status_code})")
+                            st.write("Google 回傳的詳細訊息：")
+                            st.code(response.text) # 把錯誤訊息印出來給我們看
+                            
+                except Exception as e:
+                    st.error(f"❌ 連線失敗: {str(e)}")
 with t2:
     st.header("🔒 管理員專區")
     pw = st.text_input("輸入管理員密碼", type="password", key="pw_t2")
