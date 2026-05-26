@@ -1,12 +1,26 @@
 import streamlit as st
+import pandas as pd
 import gspread
 
-# 建議加上快取，避免重複載入檔案
+# --- 1. 設定區 ---
+INV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTo2vi_36qF4mzPkxzNOJPTip7y-TXJLBm745noRRa4v_L_qkJ0DhFkaJ7tvYLCYWdFV3wbXOtH--zJ/pub?gid=0&single=true&output=csv"
+LOG_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTo2vi_36qF4mzPkxzNOJPTip7y-TXJLBm745noRRa4v_L_qkJ0DhFkaJ7tvYLCYWdFV3wbXOtH--zJ/pub?gid=1320901506&single=true&output=csv"
+SET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTo2vi_36qF4mzPkxzNOJPTip7y-TXJLBm745noRRa4v_L_qkJ0DhFkaJ7tvYLCYWdFV3wbXOtH--zJ/pub?gid=657176737&single=true&output=csv"
+
+# --- 2. 函數區 ---
 @st.cache_resource
 def get_sh():
-    # 這是 gspread 最標準的檔案讀取方式
-    # 只要 key.json 在同一個資料夾，它就會自動搞定所有權限
+    # 這行是最後的手段，只要 key.json 檔案存在就一定會過
     return gspread.service_account(filename='key.json').open_by_key("1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8")
+
+def get_data():
+    try:
+        df_inv = pd.read_csv(INV_URL, encoding='utf-8-sig')
+        df_log = pd.read_csv(LOG_URL, encoding='utf-8-sig')
+        df_set = pd.read_csv(SET_URL, encoding='utf-8-sig')
+        return df_inv, df_log, df_set
+    except Exception as e:
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 # --- 3. 介面 ---
 st.title("明星精密刀具管理系統")
 if 'data' not in st.session_state:
