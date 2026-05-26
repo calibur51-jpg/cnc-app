@@ -1,34 +1,46 @@
 import streamlit as st
 import pandas as pd
 import requests
-import io
-from streamlit_gsheets import GSheetsConnection  # 新增引用
+import time
 
 # --- 1. 設定區 ---
-# 這裡只要填入你的 Google Sheet 網址 (整個網址)
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8/edit"
+# 這些 CSV 連結是讀取即時資料最穩定、不用安裝額外套件的方式
+INV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTo2vi_36qF4mzPkxzNOJPTip7y-TXJLBm745noRRa4v_L_qkJ0DhFkaJ7tvYLCYWdFV3wbXOtH--zJ/pub?gid=0&single=true&output=csv"
+LOG_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTo2vi_36qF4mzPkxzNOJPTip7y-TXJLBm745noRRa4v_L_qkJ0DhFkaJ7tvYLCYWdFV3wbXOtH--zJ/pub?gid=1320901506&single=true&output=csv"
+SET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTo2vi_36qF4mzPkxzNOJPTip7y-TXJLBm745noRRa4v_L_qkJ0DhFkaJ7tvYLCYWdFV3wbXOtH--zJ/pub?gid=657176737&single=true&output=csv"
+
 WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyZ6-S7x4fp4iCQbdpClMlXQFUxQ9q036XFtCZxuObS2mqaF7wv-U26QOJhqGsvxHyskQ/exec"
 
-# --- 2. 初始化連線 ---
-conn = st.connection("gsheets", type=GSheetsConnection)
-
-@st.cache_data(ttl=10) # 這裡稍微加一點快取，避免每毫秒都在請求 API
+# --- 2. 函數區 ---
+@st.cache_data(ttl=5) # 短快取，搭配下方時間戳記技術實現即時讀取
 def get_data():
     try:
-        # 直接讀取 Sheet，不需要管 CSV 延遲
-        df_inv = conn.read(spreadsheet=SHEET_URL, worksheet="inventory")
-        df_log = conn.read(spreadsheet=SHEET_URL, worksheet="logs")
-        df_set = conn.read(spreadsheet=SHEET_URL, worksheet="settings")
+        # 使用時間戳記強制 Google 丟棄舊快取，讀取最新資料
+        ts = time.time()
+        df_inv = pd.read_csv(f"{INV_URL}&_={ts}", encoding='utf-8-sig')
+        df_log = pd.read_csv(f"{LOG_URL}&_={ts}", encoding='utf-8-sig')
+        df_set = pd.read_csv(f"{SET_URL}&_={ts}", encoding='utf-8-sig')
         return df_inv, df_log, df_set
     except Exception as e:
         st.error(f"連線失敗: {e}")
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
-# --- 3. 介面 ---
+
+def post_data_to_sheet(payload):
+    try:
+        response = requests.post(WEBHOOK_URL, json=payload)
+        return response.status_code == 200
+    except:
+        return False
+
+# --- 3. 介面區 ---
 st.title("明星精密刀具管理系統")
+
+# 初始化 Session State
 if 'data' not in st.session_state:
     st.session_state.data = get_data()
 
-if st.button("🔄 立即同步最新庫存", key="sync_data_button"):
+# 同步按鈕
+if st.button("🔄 立即同步最新庫存"):
     st.session_state.data = get_data()
     st.rerun()
 
