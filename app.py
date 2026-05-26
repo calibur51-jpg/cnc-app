@@ -1,64 +1,16 @@
+import streamlit as st
+import pandas as pd
 import os
 import json
 import gspread
 from google.oauth2.service_account import Credentials
 
-# --- 1. 設定區：請將這裡的 URL 換成你那三個發布好的 CSV 網址 ---
+# --- 1. 設定區 ---
 INV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTo2vi_36qF4mzPkxzNOJPTip7y-TXJLBm745noRRa4v_L_qkJ0DhFkaJ7tvYLCYWdFV3wbXOtH--zJ/pub?gid=0&single=true&output=csv"
 LOG_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTo2vi_36qF4mzPkxzNOJPTip7y-TXJLBm745noRRa4v_L_qkJ0DhFkaJ7tvYLCYWdFV3wbXOtH--zJ/pub?gid=1320901506&single=true&output=csv"
 SET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTo2vi_36qF4mzPkxzNOJPTip7y-TXJLBm745noRRa4v_L_qkJ0DhFkaJ7tvYLCYWdFV3wbXOtH--zJ/pub?gid=657176737&single=true&output=csv"
 
-# 將私鑰拆分成列表，避免任何轉譯字元衝突
-private_key_parts = [
-    "-----BEGIN PRIVATE KEY-----",
-    "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDBXszQ8ez3DvoD",
-    "9jfe5mPEKVHwp03WULp2E5jmEfZNnpmoVnNdXm0TC6d4z9Zd2FKRRntvj7m1Bzw2",
-    "xkJSkemb047TKp0B+jFDucJJzkTtNDAiaM77Xk44I4AjTkdQFYOgHjDs+hAMmzvS",
-    "8J3LAcq4FLOnW3yv7Ig0J7biahdKaAa6x8o4RW6nQpz4H3owIgjxGcROobvsmMB",
-    "iOaLQmgfVToLlAQcCJ4+0gW+3jHJU1x/gTMmITPWUhG+9Kg0CNSTdr3v3qhk7T8Y",
-    "tWaMB1nkXfAmFwL6xayZVVVbDa42d7T+WEGPNdj83xkG4HE/MEQ+un5A1ryvtazW",
-    "VCp0Ni6JAgMBAAECggEAEqP2e0lpAhd04Tsj32ZG9YbUre3Y1mk1klKZDYurekfI",
-    "0PYVfKmQuvJniGFDrUwASJ4aYdKhcKqkArU5uT803XdHSEKuPD2vsFNIwAfk89dR",
-    "MQ34rvlkMav1ayHdhMIwLDgg2AVSlP6FZbQZh/NyJOzk9SP/+O8Eob921SxsNpk1",
-    "6Pf3F7HzO8MPhwk6UTYaAWyT0Rlj6wwrEe6lZpZd7uwPQqmujV6GtKIcrs4+tguM",
-    "sU2/JNRkt3Nl0BBcKaD+en6bNtk1PYflyzap0ta+mKQ3kEsKG2+ozCvUDmTrykij",
-    "HLSY8Yia8z9Rg5SxqIZql+kF6FVEwxJnJzTotclYsQKBgQDm2eE9E6w0Bgimv2Fi",
-    "vXWp33jQv7X2rdmWM0Sh5qKRXVIz2ezD3LBSIvffCsBmfkVQNAM5Gaa3ZKsPuwbc",
-    "D7wMHBIEpony3DCQZA0R0KIgqZG290Tzh42M9ZBqCDcuvPCiks+mpATtwUSn2HfA",
-    "a0kJ/kcZ0Za8v3yfphei9IyFkQKBgQDWb6H4n/1yYPziU6N1raAW8H+9Qd74VIIl",
-    "JxWekO4gLmwmZP8ZGf79ZO9jCde4tmF/Yxp6av5UzMfdgH1/ebfU5Eqs1olWhD+u",
-    "OFGiND49SAkdKCFcKdbOgdpGZubsBg8wJiRfxa5sx/lp/3OD93FTRU21p93eLiSr",
-    "kUsN+L+9eQKBgCUYT8RDvAEkExHQYPK/5P9mBIDuvWulJfinxliJugfHyiTA2PXk",
-    "KYUZT2FM1fviQHsR0I7FW2/OwlolwIVuFdaQUCjlJfebgEZDfYImV1cOSHbxJuhH",
-    "GOzUrN8M8OkWvUgydSGe65fU3ZZnB18pHjR34q74adNspbb1toid6VKxAoGBAI5d",
-    "MtWTsnpbdcj06lLYYK6aINSPhO6tfHIaDrplUhK/f0HGT65kmeu1NVE1WajiPLyM",
-    "GSopGo1GH3MpOSiGsMuAfStei3OK/ZQ3A8uCj8ezqYlX+T3s8RXNFBMlgi40n6TB",
-    "zehfn7vM0APVeuWkQ/Ka0krGFgDJ9cKKBaBTA0lRAoGAZljN5SUQNMkT8p8bFcAL",
-    "r1RGmbRgKm/yxfcMkW52R8bOBmShinliWkr+4/gHToXzF9N9qX6eou2UMIBANK2k",
-    "83jrBGPKFby5Zv4y5uKX6/1HKHmmi3lWqCgHgzU37DRkoowldA26jBGZiXFx336H",
-    "s+VRW8oMlI8KCtPbs86hoEY=",
-    "-----END PRIVATE KEY-----"
-]
-
-# 將列表組合成完整的字串，中間用換行符號連接
-full_private_key = "\n".join(private_key_parts)
-
-FULL_JSON_DATA = {
-  "type": "service_account",
-  "project_id": "cnc-system-497409",
-  "private_key_id": "d3209413a7333a6627e7e82b1470c421887f1bcb",
-  "private_key": full_private_key, # 這裡使用組裝好的字串
-  "client_email": "app-484@cnc-system-497409.iam.gserviceaccount.com",
-  "client_id": "102780254846012931462",
-  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-  "token_uri": "https://oauth2.googleapis.com/token",
-  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/app-484%40cnc-system-497409.iam.gserviceaccount.com",
-  "universe_domain": "googleapis.com"
-}
-
-# --- 3. 讀取邏輯 (快且穩) ---
-
+# --- 2. 讀取與寫入函數 ---
 def get_data():
     try:
         df_inv = pd.read_csv(INV_URL, encoding='utf-8-sig')
@@ -66,72 +18,25 @@ def get_data():
         df_set = pd.read_csv(SET_URL, encoding='utf-8-sig')
         return df_inv, df_log, df_set
     except Exception as e:
-        st.error(f"資料讀取失敗，請檢查網址或權限: {e}")
-        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame() # 回傳空的 DataFrame 避免程式崩潰
-# --- 4. 寫入邏輯 (透過 API，僅在需要時連線) ---
+        st.error(f"資料讀取失敗: {e}")
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
 def get_sh():
-    # 1. 組裝金鑰內容
-    pk_parts = [
-        "-----BEGIN PRIVATE KEY-----",
-        "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDBXszQ8ez3DvoD",
-        "9jfe5mPEKVHwp03WULp2E5jmEfZNnpmoVnNdXm0TC6d4z9Zd2FKRRntvj7m1Bzw2",
-        "xkJSkemb047TKp0B+jFDucJJzkTtNDAiaM77Xk44I4AjTkdQFYOgHjDs+hAMmzvS",
-        "8J3LAcq4FLOnW3yv7Ig0J7biahdKaAa6x8o4RW6nQpz4H3owIgjxGcROobvsmMB",
-        "iOaLQmgfVToLlAQcCJ4+0gW+3jHJU1x/gTMmITPWUhG+9Kg0CNSTdr3v3qhk7T8Y",
-        "tWaMB1nkXfAmFwL6xayZVVVbDa42d7T+WEGPNdj83xkG4HE/MEQ+un5A1ryvtazW",
-        "VCp0Ni6JAgMBAAECggEAEqP2e0lpAhd04Tsj32ZG9YbUre3Y1mk1klKZDYurekfI",
-        "0PYVfKmQuvJniGFDrUwASJ4aYdKhcKqkArU5uT803XdHSEKuPD2vsFNIwAfk89dR",
-        "MQ34rvlkMav1ayHdhMIwLDgg2AVSlP6FZbQZh/NyJOzk9SP/+O8Eob921SxsNpk1",
-        "6Pf3F7HzO8MPhwk6UTYaAWyT0Rlj6wwrEe6lZpZd7uwPQqmujV6GtKIcrs4+tguM",
-        "sU2/JNRkt3Nl0BBcKaD+en6bNtk1PYflyzap0ta+mKQ3kEsKG2+ozCvUDmTrykij",
-        "HLSY8Yia8z9Rg5SxqIZql+kF6FVEwxJnJzTotclYsQKBgQDm2eE9E6w0Bgimv2Fi",
-        "vXWp33jQv7X2rdmWM0Sh5qKRXVIz2ezD3LBSIvffCsBmfkVQNAM5Gaa3ZKsPuwbc",
-        "D7wMHBIEpony3DCQZA0R0KIgqZG290Tzh42M9ZBqCDcuvPCiks+mpATtwUSn2HfA",
-        "a0kJ/kcZ0Za8v3yfphei9IyFkQKBgQDWb6H4n/1yYPziU6N1raAW8H+9Qd74VIIl",
-        "JxWekO4gLmwmZP8ZGf79ZO9jCde4tmF/Yxp6av5UzMfdgH1/ebfU5Eqs1olWhD+u",
-        "OFGiND49SAkdKCFcKdbOgdpGZubsBg8wJiRfxa5sx/lp/3OD93FTRU21p93eLiSr",
-        "kUsN+L+9eQKBgCUYT8RDvAEkExHQYPK/5P9mBIDuvWulJfinxliJugfHyiTA2PXk",
-        "KYUZT2FM1fviQHsR0I7FW2/OwlolwIVuFdaQUCjlJfebgEZDfYImV1cOSHbxJuhH",
-        "GOzUrN8M8OkWvUgydSGe65fU3ZZnB18pHjR34q74adNspbb1toid6VKxAoGBAI5d",
-        "MtWTsnpbdcj06lLYYK6aINSPhO6tfHIaDrplUhK/f0HGT65kmeu1NVE1WajiPLyM",
-        "GSopGo1GH3MpOSiGsMuAfStei3OK/ZQ3A8uCj8ezqYlX+T3s8RXNFBMlgi40n6TB",
-        "zehfn7vM0APVeuWkQ/Ka0krGFgDJ9cKKBaBTA0lRAoGAZljN5SUQNMkT8p8bFcAL",
-        "r1RGmbRgKm/yxfcMkW52R8bOBmShinliWkr+4/gHToXzF9N9qX6eou2UMIBANK2k",
-        "83jrBGPKFby5Zv4y5uKX6/1HKHmmi3lWqCgHgzU37DRkoowldA26jBGZiXFx336H",
-        "s+VRW8oMlI8KCtPbs86hoEY=",
-        "-----END PRIVATE KEY-----"
-    ]
-    
-    # 2. 構建完整的 JSON 物件
-    data = {
-        "type": "service_account",
-        "project_id": "cnc-system-497409",
-        "private_key_id": "d3209413a7333a6627e7e82b1470c421887f1bcb",
-        "private_key": "\n".join(pk_parts),
-        "client_email": "app-484@cnc-system-497409.iam.gserviceaccount.com",
-        "client_id": "102780254846012931462",
-        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-        "token_uri": "https://oauth2.googleapis.com/token",
-        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-        "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/app-484%40cnc-system-497409.iam.gserviceaccount.com",
-        "universe_domain": "googleapis.com"
-    }
-    
-    # 3. 寫入臨時檔案
-    with open("temp_creds.json", "w") as f:
-        json.dump(data, f)
-        
-    # 4. 從「檔案」讀取，Google 認證模組這時就會正確辨識 PEM 格式了
-    creds = Credentials.from_service_account_file(
-        "temp_creds.json", 
-        scopes=["https://www.googleapis.com/auth/spreadsheets"]
-    )
-    
-    # 5. 清理檔案
+    pk_parts = ["-----BEGIN PRIVATE KEY-----", "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDBXszQ8ez3DvoD", "9jfe5mPEKVHwp03WULp2E5jmEfZNnpmoVnNdXm0TC6d4z9Zd2FKRRntvj7m1Bzw2", "xkJSkemb047TKp0B+jFDucJJzkTtNDAiaM77Xk44I4AjTkdQFYOgHjDs+hAMmzvS", "8J3LAcq4FLOnW3yv7Ig0J7biahdKaAa6x8o4RW6nQpz4H3owIgjxGcROobvsmMB", "iOaLQmgfVToLlAQcCJ4+0gW+3jHJU1x/gTMmITPWUhG+9Kg0CNSTdr3v3qhk7T8Y", "tWaMB1nkXfAmFwL6xayZVVVbDa42d7T+WEGPNdj83xkG4HE/MEQ+un5A1ryvtazW", "VCp0Ni6JAgMBAAECggEAEqP2e0lpAhd04Tsj32ZG9YbUre3Y1mk1klKZDYurekfI", "0PYVfKmQuvJniGFDrUwASJ4aYdKhcKqkArU5uT803XdHSEKuPD2vsFNIwAfk89dR", "MQ34rvlkMav1ayHdhMIwLDgg2AVSlP6FZbQZh/NyJOzk9SP/+O8Eob921SxsNpk1", "6Pf3F7HzO8MPhwk6UTYaAWyT0Rlj6wwrEe6lZpZd7uwPQqmujV6GtKIcrs4+tguM", "sU2/JNRkt3Nl0BBcKaD+en6bNtk1PYflyzap0ta+mKQ3kEsKG2+ozCvUDmTrykij", "HLSY8Yia8z9Rg5SxqIZql+kF6FVEwxJnJzTotclYsQKBgQDm2eE9E6w0Bgimv2Fi", "vXWp33jQv7X2rdmWM0Sh5qKRXVIz2ezD3LBSIvffCsBmfkVQNAM5Gaa3ZKsPuwbc", "D7wMHBIEpony3DCQZA0R0KIgqZG290Tzh42M9ZBqCDcuvPCiks+mpATtwUSn2HfA", "a0kJ/kcZ0Za8v3yfphei9IyFkQKBgQDWb6H4n/1yYPziU6N1raAW8H+9Qd74VIIl", "JxWekO4gLmwmZP8ZGf79ZO9jCde4tmF/Yxp6av5UzMfdgH1/ebfU5Eqs1olWhD+u", "OFGiND49SAkdKCFcKdbOgdpGZubsBg8wJiRfxa5sx/lp/3OD93FTRU21p93eLiSr", "kUsN+L+9eQKBgCUYT8RDvAEkExHQYPK/5P9mBIDuvWulJfinxliJugfHyiTA2PXk", "KYUZT2FM1fviQHsR0I7FW2/OwlolwIVuFdaQUCjlJfebgEZDfYImV1cOSHbxJuhH", "GOzUrN8M8OkWvUgydSGe65fU3ZZnB18pHjR34q74adNspbb1toid6VKxAoGBAI5d", "MtWTsnpbdcj06lLYYK6aINSPhO6tfHIaDrplUhK/f0HGT65kmeu1NVE1WajiPLyM", "GSopGo1GH3MpOSiGsMuAfStei3OK/ZQ3A8uCj8ezqYlX+T3s8RXNFBMlgi40n6TB", "zehfn7vM0APVeuWkQ/Ka0krGFgDJ9cKKBaBTA0lRAoGAZljN5SUQNMkT8p8bFcAL", "r1RGmbRgKm/yxfcMkW52R8bOBmShinliWkr+4/gHToXzF9N9qX6eou2UMIBANK2k", "83jrBGPKFby5Zv4y5uKX6/1HKHmmi3lWqCgHgzU37DRkoowldA26jBGZiXFx336H", "s+VRW8oMlI8KCtPbs86hoEY=", "-----END PRIVATE KEY-----"]
+    data = {"type": "service_account", "project_id": "cnc-system-497409", "private_key_id": "d3209413a7333a6627e7e82b1470c421887f1bcb", "private_key": "\n".join(pk_parts), "client_email": "app-484@cnc-system-497409.iam.gserviceaccount.com", "client_id": "102780254846012931462", "auth_uri": "https://accounts.google.com/o/oauth2/auth", "token_uri": "https://oauth2.googleapis.com/token", "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs", "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/app-484%40cnc-system-497409.iam.gserviceaccount.com", "universe_domain": "googleapis.com"}
+    with open("temp_creds.json", "w") as f: json.dump(data, f)
+    creds = Credentials.from_service_account_file("temp_creds.json", scopes=["https://www.googleapis.com/auth/spreadsheets"])
     os.remove("temp_creds.json")
-    
     return gspread.authorize(creds).open_by_key("1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8")
+
+# --- 3. 介面與快取控制 ---
+st.title("明星精密刀具管理系統")
+if 'data' not in st.session_state:
+    st.session_state.data = get_data()
+
+if st.button("🔄 立即同步最新庫存"):
+    st.session_state.data = get_data()
+    st.rerun()
 # --- 5. 介面 ---
 st.title("明星精密刀具管理系統")
 if st.button("🔄 立即同步最新庫存"):
