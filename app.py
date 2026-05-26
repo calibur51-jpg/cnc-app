@@ -56,35 +56,34 @@ with t1:
     _, df_log, df_set = st.session_state.data
     
     # --- 1. 直接開啟相機掃描區 ---
-with st.expander("📷 掃描 QR Code"):
-    img_file = st.camera_input("直接拍攝刀具 QR Code")
-    
-    # 關鍵在這裡：一定要檢查 img_file 是否有值，才能進行下一步
-    if img_file is not None:
-        img = Image.open(img_file) # 這樣寫就不會因為還沒拍照而崩潰
-        img_array = np.array(img)
-        detector = cv2.QRCodeDetector()
-        data, _, _ = detector.detectAndDecode(img_array)
+    with st.expander("📷 掃描 QR Code"):
+        img_file = st.camera_input("直接拍攝刀具 QR Code")
         
-        if data:
-            st.session_state.scanned_id = data
-            st.success(f"✅ 識別成功！編號: {data}")
-            import time
-            time.sleep(1)
-            st.rerun() 
-        else:
-            st.warning("⚠️ 無法識別，請對準 QR Code")
+        if img_file is not None:
+            img = Image.open(img_file)
+            img_array = np.array(img)
+            detector = cv2.QRCodeDetector()
+            data, _, _ = detector.detectAndDecode(img_array)
+            if data:
+                st.session_state.scanned_id = data
+                st.success(f"✅ 識別成功！編號: {data}")
+                import time
+                time.sleep(1)
+                st.rerun() 
+            else:
+                st.warning("⚠️ 無法識別，請對準 QR Code 並保持穩定")
 
     # --- 2. 篩選與選擇邏輯 ---
-    default_idx = 0
+    # 設定預設分類
     cat_sel = "全部"
     
+    # 處理掃描後的自動選取
     if "scanned_id" in st.session_state:
         match = df_inv[df_inv["刀具編號"].astype(str) == st.session_state.scanned_id]
         if not match.empty:
             cat_sel = match.iloc[0]["分類"]
             target_name = match.iloc[0]["品名規格"]
-            del st.session_state.scanned_id
+            del st.session_state.scanned_id # 處理完就刪除，避免重複觸發
         else:
             st.error("❌ 系統中找不到此編號的刀具")
 
@@ -95,7 +94,7 @@ with st.expander("📷 掃描 QR Code"):
     df_f = df_inv if cat_sel == "全部" else df_inv[df_inv["分類"] == cat_sel]
     t_list = df_f["品名規格"].tolist()
     
-    # 處理掃描後自動選取的邏輯
+    # 處理下拉選單自動選取
     default_idx = 0
     if "target_name" in locals() and target_name in t_list:
         default_idx = t_list.index(target_name)
