@@ -87,9 +87,30 @@ with t1:
             if qty > cur_stock:
                 st.error("❌ 庫存不足！")
             else:
-                new_s = cur_stock - qty
-                get_sh().worksheet("inventory").update_cell(idx+2, df_inv.columns.get_loc("目前庫存")+1, new_s)
-                get_sh().worksheet("logs").append_row([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "領用", t_sel, qty, u, m, r, wo])
+                try:
+                    # 1. 執行寫入 (將 get_sh() 連線儲存為 sh，避免重複呼叫)
+                    sh = get_sh()
+                    new_s = cur_stock - qty
+                    
+                    # 更新庫存
+                    sh.worksheet("inventory").update_cell(idx + 2, df_inv.columns.get_loc("目前庫存") + 1, new_s)
+                    
+                    # 寫入紀錄 (確保 datetime 已匯入)
+                    sh.worksheet("logs").append_row([
+                        datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
+                        "領用", t_sel, qty, u, m, r, wo
+                    ])
+                    
+                    # 2. 領用成功後的處理
+                    st.success("✅ 領用成功！")
+                    
+                    # 關鍵步驟：清除緩存並強制重整頁面，這樣你馬上就能看到最新的庫存數據
+                    st.cache_data.clear()
+                    st.rerun()
+                    
+                except Exception as e:
+                    # 如果寫入失敗，顯示具體錯誤，方便除錯
+                    st.error(f"寫入失敗，請檢查權限或連線：{e}")
                 
                 # 這裡增加提示停留
                 st.success(f"✅ 已領刀：{t_name} x {qty}")
