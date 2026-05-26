@@ -3,6 +3,7 @@ import pandas as pd
 import requests
 import time
 import io
+from PIL import Image
 
 # --- 1. 設定區 ---
 # 這些 CSV 連結是讀取即時資料最穩定、不用安裝額外套件的方式
