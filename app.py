@@ -33,14 +33,20 @@ def get_data():
 
 # --- 4. 寫入邏輯 (透過 API，僅在需要時連線) ---
 def get_sh():
-    # 讀取設定在環境變數裡的 JSON 字串
-    creds_dict = json.loads(st.secrets["GCP_CREDENTIALS"])
+    # 直接讀取 Secrets 字串
+    raw_json = st.secrets["GCP_CREDENTIALS"]
+    
+    # 將 JSON 轉為 dictionary
+    creds_dict = json.loads(raw_json)
+    
+    # 認證
     creds = Credentials.from_service_account_info(
         creds_dict, 
         scopes=["https://www.googleapis.com/auth/spreadsheets"]
     )
+    
+    # 返回連線物件
     return gspread.authorize(creds).open_by_key("1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8")
-  
 # --- 5. 介面 ---
 st.title("明星精密刀具管理系統")
 if st.button("🔄 立即同步最新庫存"):
