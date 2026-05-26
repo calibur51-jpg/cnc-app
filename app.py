@@ -11,7 +11,7 @@ def get_gc():
 
 SPREADSHEET_ID = "1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8"
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=0)
 def get_data():
     gc = get_gc()  # 改用這個新函數
     sh = gc.open_by_key(SPREADSHEET_ID)
