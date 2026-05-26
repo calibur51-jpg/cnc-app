@@ -279,12 +279,11 @@ with t4:
     sel_tool_name = st.selectbox("選擇刀具", tool_list, key="t4_tool")
     tool_info = df_inv[df_inv["品名規格"] == sel_tool_name].iloc[0]
     
-    # 取得安全庫存與單價 (確保欄位名稱正確，若你的表格標題不同請微調)
+    # 顯示資訊 (若 F/G 欄名稱不同請修正，這邊假設是 '安全庫存' 和 '單價')
     cur_qty = int(tool_info["目前庫存"])
     safe_qty = int(tool_info["安全庫存"])
     price = tool_info["單價"]
     
-    # --- 資訊顯示區 ---
     c1, c2, c3 = st.columns(3)
     c1.metric("目前庫存", cur_qty)
     c2.metric("安全水位", safe_qty)
@@ -293,7 +292,7 @@ with t4:
     if cur_qty <= safe_qty:
         st.warning(f"⚠️ 庫存已低於安全水位 (<{safe_qty})，請準備進貨！")
 
-    # --- 操作區 ---
+    # 操作模式
     mode = st.radio("選擇操作模式", ["進貨", "盤點"], horizontal=True)
     
     with st.form("t4_form", clear_on_submit=True):
@@ -305,17 +304,30 @@ with t4:
             payload = {
                 "action": mode,
                 "t_id": tool_info["刀具編號"],
-                "qty": qty_input,   # 進貨用
-                "new_qty": qty_input, # 盤點用
+                "qty": qty_input,
+                "new_qty": qty_input,
                 "u": u_input
             }
+            
+            # 呼叫後端 API
             if post_data_to_sheet(payload):
+                # --- 關鍵：強迫更新 Session State 中的資料 ---
+                # 找到該刀具在全域資料表中的索引位置
+                idx = df_inv[df_inv["刀具編號"] == tool_info["刀具編號"]].index[0]
+                
+                # 判斷是進貨(加總)還是盤點(覆寫)
+                if mode == "進貨":
+                    st.session_state.data[0].loc[idx, "目前庫存"] += qty_input
+                else:
+                    st.session_state.data[0].loc[idx, "目前庫存"] = qty_input
+                
+                # 設定成功訊息並重整
                 st.session_state.success_msg = f"✅ {btn_text}成功！"
                 st.rerun()
             else:
-                st.error("❌ 操作失敗")
+                st.error("❌ 操作失敗，請檢查網路")
 
-    # 顯示成功訊息
+    # 顯示成功訊息 (放在按鈕下方)
     if "success_msg" in st.session_state:
         st.success(st.session_state.success_msg)
         del st.session_state.success_msg
