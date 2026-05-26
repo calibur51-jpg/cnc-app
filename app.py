@@ -33,7 +33,13 @@ def get_data():
 
 # --- 4. 寫入邏輯 (透過 API，僅在需要時連線) ---
 def get_sh():
-    creds_dict = json.loads(st.secrets["GCP_CREDENTIALS"])
+    # 手動組裝 Creds 字典，完全避開 JSON 轉譯問題
+    creds_dict = {
+        "type": st.secrets["TYPE"],
+        "project_id": st.secrets["PROJECT_ID"],
+        "private_key": st.secrets["PRIVATE_KEY"], # 這裡的 \n 會被 Python 正確視為換行
+        "client_email": st.secrets["CLIENT_EMAIL"]
+    }
     
     creds = Credentials.from_service_account_info(
         creds_dict, 
