@@ -196,7 +196,7 @@ with t2:
     else:
         st.info("請輸入管理員密碼以存取管理功能")
         # --- 3. 庫存校正功能 ---
-        elif mode == "庫存校正":
+    elif mode == "庫存校正":
             st.subheader("🔧 庫存數量校正")
             # 選擇要校正的刀具
             target_tool = st.selectbox("選擇刀具", df_inv["品名規格"].tolist())
