@@ -59,29 +59,32 @@ with t1:
     # --- 1. 載入資料 ---
     _, df_log, df_set = st.session_state.data
     
-    # --- 2. 掃描 QR Code 區 ---
+# --- 2. 掃描 QR Code 區 ---
     with st.expander("📷 掃描 QR Code"):
         img_file = st.camera_input("直接拍攝刀具 QR Code")
         
-        if img_file is not None and "scanned_id" not in st.session_state:
-            with st.spinner("正在識別 QR Code..."):
-                img = Image.open(img_file)
-                # 縮放圖片提升識別率
-                w, h = img.size
-                if max(w, h) > 1024:
-                    scale = 1024 / max(w, h)
-                    img = img.resize((int(w * scale), int(h * scale)), Image.Resampling.LANCZOS)
-                
-                decoded_objects = decode(img)
-                
-                if decoded_objects:
-                    data = decoded_objects[0].data.decode('utf-8')
-                    st.session_state.scanned_id = data
-                    st.success(f"✅ 識別成功！編號: {data}")
-                    time.sleep(0.5)
-                    st.rerun() 
-                else:
-                    st.warning("⚠️ 無法識別，請對準 QR Code")
+        # 只有當圖片存在，且我們還沒掃描過這張圖片時才動作
+        if img_file is not None:
+            # 建立一個 key 來紀錄是否處理過這張圖片
+            if st.session_state.get("last_img_name") != img_file.name:
+                with st.spinner("正在識別..."):
+                    img = Image.open(img_file)
+                    # (縮放圖片程式碼保持不變)
+                    w, h = img.size
+                    if max(w, h) > 1024:
+                        scale = 1024 / max(w, h)
+                        img = img.resize((int(w * scale), int(h * scale)), Image.Resampling.LANCZOS)
+                    
+                    decoded_objects = decode(img)
+                    if decoded_objects:
+                        data = decoded_objects[0].data.decode('utf-8')
+                        st.session_state.scanned_id = data
+                        st.session_state.last_img_name = img_file.name # 記住這張圖已處理
+                        st.session_state.needs_update = True # 標記需要更新選單
+                        st.success(f"✅ 識別成功！")
+                        st.rerun()
+                    else:
+                        st.warning("⚠️ 無法識別")
 
     # --- 3. 篩選與選擇邏輯 ---
     if "scanned_id" in st.session_state:
