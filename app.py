@@ -229,7 +229,7 @@ with t3:
             # 確保數量是數字格式
             df_log["數量"] = pd.to_numeric(df_log["數量"], errors='coerce').fillna(0)
             
-            # 檢查歷史紀錄有沒有「單價」欄位，沒有就去對照庫存表的單價
+            # --- 💡 安全修正：檢查歷史紀錄有沒有「單價」欄位，沒有就去對照庫存表的單價 ---
             if "單價" in df_log.columns:
                 df_log["單價"] = pd.to_numeric(df_log["單價"], errors='coerce').fillna(0)
             else:
@@ -263,7 +263,7 @@ with t3:
             
             st.divider()
             
-            # --- 2. 原本的歷史紀錄進階篩選與下載 (自動補上品名規格) ---
+            # --- 2. 原本的歷史紀錄進階篩選與下載 (已優化：自動補上品名規格) ---
             st.header("📜 歷史紀錄進階篩選")
             col_a, col_b, col_c = st.columns(3)
             _, _, df_set = st.session_state.data 
@@ -274,9 +274,12 @@ with t3:
             search_wo = st.text_input("🔍 搜尋工單號碼:")
             
             df_filtered = df_log.copy()
+            
+            # 補上品名規格方便對照
             name_map = df_inv.set_index("刀具編號")["品名規格"].to_dict()
             df_filtered["品名規格"] = df_filtered["刀具編號"].map(name_map).fillna("未知刀具")
             
+            # 調整顯示順序
             all_cols = df_filtered.columns.tolist()
             if "品名規格" in all_cols and "刀具編號" in all_cols:
                 all_cols.remove("品名規格")
@@ -299,7 +302,7 @@ with t3:
             
             st.divider()
 
-            # --- 3. 本月財務與進銷存對帳區 ---
+            # --- 3. 💡 精裝對帳區：自動計算本月花費總金額，免手動計算 ---
             df_log["時間"] = pd.to_datetime(df_log["時間"], errors='coerce')
             current_month = pd.Timestamp.now().strftime("%Y-%m")
             df_this_month = df_log[df_log["時間"].dt.strftime("%Y-%m") == current_month].copy()
@@ -311,27 +314,135 @@ with t3:
                 df_out = df_this_month[df_this_month["動作"] == "領用"].groupby("刀具編號")["數量"].sum().reset_index(name="本月領用總數")
                 df_prices = df_this_month.groupby("刀具編號")["單價"].max().reset_index(name="單價")
                 
+                # 合併大表
                 df_m_report = df_prices.merge(df_in, on="刀具編號", how="left").merge(df_out, on="刀具編號", how="left")
                 df_m_report["本月進貨總數"] = df_m_report["本月進貨總數"].fillna(0)
                 df_m_report["本月領用總數"] = df_m_report["本月領用總數"].fillna(0)
                 
+                # 補上品名規格，讓畫面看得懂
                 df_m_report["品名規格"] = df_m_report["刀具編號"].map(name_map).fillna("未命名刀具")
                 
+                # 計算總金額
                 df_m_report["本月進貨總金額"] = df_m_report["本月進貨總數"] * df_m_report["單價"]
                 df_m_report["本月用刀總金額"] = df_m_report["本月領用總數"] * df_m_report["單價"]
                 
+                # 排列欄位
                 df_m_report = df_m_report[["刀具編號", "品名規格", "單價", "本月進貨總數", "本月進貨總金額", "本月領用總數", "本月用刀總金額"]]
                 
+                # 🚀 財務大看板：網頁上方自動統計，不需要自己算！
                 c_f1, c_f2 = st.columns(2)
-                c_f1.metric("本月買刀總金額", f"${int(df_m_report['本月進貨總金額'].sum()):,}")
-                c_f2.metric("本月用刀總金額 (消耗成本)", f"${int(df_m_report['本月用刀總金額'].sum()):,}")
+                c_f1.metric("本月新購買刀總金額", f"${int(df_m_report['本月進貨總金額'].sum()):,}")
+                c_f2.metric("本月現場用刀總成本", f"${int(df_m_report['本月用刀總金額'].sum()):,}")
                 
+                # 顯示網頁表格
                 st.dataframe(df_m_report, use_container_width=True)
                 
+                # --- 🎨 製作高質感精裝版 Excel (openpyxl) ---
+                import openpyxl
+                from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+                from openpyxl.utils import get_column_letter
+
+                wb = openpyxl.Workbook()
+                ws = wb.active
+                ws.title = "本月財務與進銷存對帳"
+                ws.views.sheetView[0].showGridLines = True # 確保網格線顯示
+
+                # 設定美化樣式 (微軟正黑體)
+                font_title = Font(name="Microsoft JhengHei", size=14, bold=True, color="2C3E50")
+                font_header = Font(name="Microsoft JhengHei", size=11, bold=True, color="FFFFFF")
+                font_data = Font(name="Microsoft JhengHei", size=10, color="000000")
+                font_total = Font(name="Microsoft JhengHei", size=11, bold=True, color="000000")
+
+                # 設定高質感配色
+                HEADER_FILL = PatternFill(start_color="34495E", end_color="34495E", fill_type="solid") # 工業深藍灰
+                TOTAL_FILL = PatternFill(start_color="EAEDED", end_color="EAEDED", fill_type="solid")  # 底部合計淡灰
+                ZEBRA_FILL = PatternFill(start_color="F8F9F9", end_color="F8F9F9", fill_type="solid")  # 斑馬紋
+
+                align_center = Alignment(horizontal="center", vertical="center")
+                align_left = Alignment(horizontal="left", vertical="center")
+                align_right = Alignment(horizontal="right", vertical="center")
+
+                thin_border = Border(left=Side(style='thin', color='BDC3C7'), right=Side(style='thin', color='BDC3C7'),
+                                     top=Side(style='thin', color='BDC3C7'), bottom=Side(style='thin', color='BDC3C7'))
+                total_border = Border(top=Side(style='thin', color='2C3E50'), bottom=Side(style='double', color='2C3E50')) # 會計雙底線
+
+                # 1. 寫入大標題
+                ws.merge_cells("A1:G1")
+                ws["A1"] = f"📅 CNC 刀具管理系統 - 本月財務與進銷存對帳表 ({current_month})"
+                ws["A1"].font = font_title
+                ws["A1"].alignment = align_left
+                ws.row_dimensions[1].height = 35
+
+                # 2. 寫入表頭
+                headers = ["刀具編號", "品名規格", "單價 (TWD)", "本月進貨總數", "本月進貨總金額", "本月領用總數", "本月用刀總金額"]
+                for col_idx, text in enumerate(headers, 1):
+                    cell = ws.cell(row=3, column=col_idx, value=text)
+                    cell.font = font_header
+                    cell.fill = HEADER_FILL
+                    cell.alignment = align_center
+                    cell.border = thin_border
+                ws.row_dimensions[3].height = 26
+
+                # 3. 寫入資料
+                start_row = 4
+                for i, row_data in enumerate(df_m_report.values):
+                    current_row = start_row + i
+                    ws.row_dimensions[current_row].height = 20
+                    for col_idx, val in enumerate(row_data, 1):
+                        cell = ws.cell(row=current_row, column=col_idx, value=val)
+                        cell.font = font_data
+                        cell.border = thin_border
+                        
+                        if i % 2 == 1: cell.fill = ZEBRA_FILL # 隔行變色
+                        
+                        # 靠左靠右對齊與金流格式化
+                        if col_idx == 1: cell.alignment = align_center
+                        elif col_idx == 2: cell.alignment = align_left
+                        elif col_idx == 3:
+                            cell.alignment = align_right
+                            cell.number_format = '$#,##0'
+                        elif col_idx in [4, 6]:
+                            cell.alignment = align_right
+                            cell.number_format = '#,##0'
+                        elif col_idx in [5, 7]:
+                            cell.alignment = align_right
+                            cell.number_format = '$#,##0'
+
+                # 4. 寫入合計欄位與 Excel 公式 (免動手算)
+                total_row = start_row + len(df_m_report)
+                ws.row_dimensions[total_row].height = 24
+                ws.cell(row=total_row, column=1, value="合計").font = font_total
+                ws.cell(row=total_row, column=1).alignment = align_center
+                
+                for col_idx in range(1, 8):
+                    cell = ws.cell(row=total_row, column=col_idx)
+                    cell.border = total_border
+                    cell.fill = TOTAL_FILL
+                    if col_idx in [4, 5, 6, 7]:
+                        cell.font = font_total
+                        cell.alignment = align_right
+                
+                # 自動埋入動態加總公式
+                ws.cell(row=total_row, column=4, value=f"=SUM(D{start_row}:D{total_row-1})").number_format = '#,##0'
+                ws.cell(row=total_row, column=5, value=f"=SUM(E{start_row}:E{total_row-1})").number_format = '$#,##0'
+                ws.cell(row=total_row, column=6, value=f"=SUM(F{start_row}:F{total_row-1})").number_format = '#,##0'
+                ws.cell(row=total_row, column=7, value=f"=SUM(G{start_row}:G{total_row-1})").number_format = '$#,##0'
+
+                # 5. 自動調整欄寬
+                ws.column_dimensions['A'].width = 12
+                ws.column_dimensions['B'].width = 30
+                for col_idx in range(3, 8):
+                    ws.column_dimensions[get_column_letter(col_idx)].width = 16
+
+                # 匯出檔案
                 buf_m = io.BytesIO()
-                with pd.ExcelWriter(buf_m) as w:
-                    df_m_report.to_excel(w, sheet_name='本月財務對帳', index=False)
-                st.download_button(f"📥 下載 {current_month} 財務對帳 Excel", buf_m.getvalue(), f"CNC_Monthly_Financial_Report_{current_month}.xlsx")
+                wb.save(buf_m)
+                
+                st.download_button(
+                    label=f"📥 下載 {current_month} 精裝版對帳 Excel", 
+                    data=buf_m.getvalue(), 
+                    file_name=f"CNC_Monthly_Financial_Report_{current_month}.xlsx"
+                )
             else:
                 st.info("本月目前尚無任何進貨或領用紀錄。")
                 
