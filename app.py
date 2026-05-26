@@ -56,13 +56,14 @@ t1, t2, t3, t4 = st.tabs(["領用", "後台", "紀錄", "進貨與盤點系統"]
 with t1:
     st.header("🔪 刀具領用")
     
-    # --- 載入資料 ---
+    # --- 1. 載入資料 ---
     _, df_log, df_set = st.session_state.data
     
-    # --- 1. 掃描區 ---
+    # --- 2. 掃描 QR Code 區 ---
     with st.expander("📷 掃描 QR Code"):
         img_file = st.camera_input("直接拍攝刀具 QR Code")
         
+        # 只要有拍照，且狀態還沒被記錄，就處理
         if img_file is not None and "scanned_id" not in st.session_state:
             img = Image.open(img_file)
             decoded_objects = decode(img)
@@ -71,29 +72,35 @@ with t1:
                 data = decoded_objects[0].data.decode('utf-8')
                 st.session_state.scanned_id = data
                 st.success(f"✅ 識別成功！編號: {data}")
+                st.rerun() # 觸發重跑以更新下方選單
             else:
-                st.warning("⚠️ 無法識別，請確保 QR Code 對準鏡頭")
+                st.warning("⚠️ 無法識別，請確保 QR Code 對準鏡頭且無強烈反光")
 
-    # --- 2. 篩選與選擇邏輯 (這就是你剛要加的那段) ---
+    # --- 3. 篩選與選擇邏輯 (自動跳轉核心) ---
     cat_sel = "全部"
     target_tool_name = None
 
+    # 如果有掃碼結果，進行反查
     if "scanned_id" in st.session_state:
         match = df_inv[df_inv["刀具編號"].astype(str) == st.session_state.scanned_id]
         if not match.empty:
             cat_sel = match.iloc[0]["分類"]
             target_tool_name = match.iloc[0]["品名規格"]
-            del st.session_state.scanned_id 
+            del st.session_state.scanned_id # 清除狀態
         else:
-            st.error("❌ 系統中找不到此編號的刀具")
+            st.error(f"❌ 找不到編號 {st.session_state.scanned_id} 的刀具")
+            del st.session_state.scanned_id
 
+    # A. 選擇分類 (強制跳轉)
     cats = ["全部"] + df_inv["分類"].unique().tolist()
     cat_idx = cats.index(cat_sel) if cat_sel in cats else 0
     cat_sel = st.selectbox("分類", cats, index=cat_idx, key="t1_cat")
     
+    # B. 過濾刀具清單
     df_f = df_inv if cat_sel == "全部" else df_inv[df_inv["分類"] == cat_sel]
     t_list = df_f["品名規格"].tolist()
     
+    # C. 選擇刀具 (強制跳轉)
     default_idx = 0
     if target_tool_name and target_tool_name in t_list:
         default_idx = t_list.index(target_tool_name)
@@ -107,7 +114,7 @@ with t1:
     
     st.info(f"編號:{t_sel} | 儲位:{df_inv.loc[idx, '儲位']} | 庫存:{cur_stock}")
     
-    # --- 3. 數量調整 ---
+    # --- 4. 數量調整 ---
     if "q_val" not in st.session_state: st.session_state["q_val"] = 1
     
     c1, c2 = st.columns(2)
@@ -119,7 +126,7 @@ with t1:
     qty = st.number_input("數量", min_value=1, value=st.session_state["q_val"])
     st.session_state["q_val"] = qty
     
-    # --- 4. 領用資訊 ---
+    # --- 5. 領用資訊 ---
     u_list = df_set["人員"].replace("", pd.NA).dropna().unique().tolist()
     m_list = df_set["機台"].replace("", pd.NA).dropna().tolist()
     u = st.selectbox("人員", u_list, key="t1_user")
@@ -127,7 +134,7 @@ with t1:
     r = st.selectbox("原因", ["正常磨損", "斷刀", "架機", "其他"], key="t1_reason")
     wo = st.text_input("工單", key="t1_wo").strip()
     
-    # --- 5. 確認領用 ---
+    # --- 6. 確認領用 ---
     if st.button("確認領用", type="primary", use_container_width=True):
         if qty > cur_stock:
             st.error("❌ 庫存不足！")
@@ -141,8 +148,9 @@ with t1:
                     response = requests.post(WEBHOOK_URL, json=payload, timeout=10)
                     if response.status_code == 200:
                         st.session_state.data[0].loc[idx, "目前庫存"] -= qty
-                        st.success(f"✅ 已領刀：{t_name} x {qty}")
                         st.session_state["q_val"] = 1
+                        st.toast(f"✅ 已領刀：{t_name} x {qty}", icon="✅")
+                        time.sleep(1)
                         st.rerun()
                     else:
                         st.error(f"❌ 寫入失敗 (伺服器回應: {response.status_code})")
