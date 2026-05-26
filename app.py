@@ -59,11 +59,10 @@ with t1:
     # --- 載入資料 ---
     _, df_log, df_set = st.session_state.data
     
-    # --- 1. 掃描區 (使用 pyzbar) ---
+    # --- 1. 掃描區 ---
     with st.expander("📷 掃描 QR Code"):
         img_file = st.camera_input("直接拍攝刀具 QR Code")
         
-        # 這裡的狀態檢查非常重要，確保只處理一次
         if img_file is not None and "scanned_id" not in st.session_state:
             img = Image.open(img_file)
             decoded_objects = decode(img)
@@ -72,21 +71,18 @@ with t1:
                 data = decoded_objects[0].data.decode('utf-8')
                 st.session_state.scanned_id = data
                 st.success(f"✅ 識別成功！編號: {data}")
-                # 這裡刪除 st.rerun()，讓網頁自然更新即可
             else:
                 st.warning("⚠️ 無法識別，請確保 QR Code 對準鏡頭")
 
-    # --- 2. 篩選與選擇邏輯 ---
-    # 確保這行與 'with st.expander' 在同一個縮排層級
+    # --- 2. 篩選與選擇邏輯 (這就是你剛要加的那段) ---
     cat_sel = "全部"
-    
-    # 處理掃描後的自動選取
+    target_tool_name = None
+
     if "scanned_id" in st.session_state:
-        # 這裡請確認資料框變數名稱是否正確 (例如 df_inv)
         match = df_inv[df_inv["刀具編號"].astype(str) == st.session_state.scanned_id]
         if not match.empty:
             cat_sel = match.iloc[0]["分類"]
-            target_name = match.iloc[0]["品名規格"]
+            target_tool_name = match.iloc[0]["品名規格"]
             del st.session_state.scanned_id 
         else:
             st.error("❌ 系統中找不到此編號的刀具")
@@ -98,11 +94,10 @@ with t1:
     df_f = df_inv if cat_sel == "全部" else df_inv[df_inv["分類"] == cat_sel]
     t_list = df_f["品名規格"].tolist()
     
-    # 處理下拉選單自動選取
     default_idx = 0
-    if "target_name" in locals() and target_name in t_list:
-        default_idx = t_list.index(target_name)
-        
+    if target_tool_name and target_tool_name in t_list:
+        default_idx = t_list.index(target_tool_name)
+    
     t_name = st.selectbox("選擇領用刀具", t_list, index=default_idx, key="t1_tool")
     
     # 取得選定刀具資訊
@@ -148,7 +143,7 @@ with t1:
                         st.session_state.data[0].loc[idx, "目前庫存"] -= qty
                         st.success(f"✅ 已領刀：{t_name} x {qty}")
                         st.session_state["q_val"] = 1
-                        time.sleep(1); st.rerun()
+                        st.rerun()
                     else:
                         st.error(f"❌ 寫入失敗 (伺服器回應: {response.status_code})")
                 except Exception as e:
