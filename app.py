@@ -51,23 +51,27 @@ with t1:
     cat_sel = st.selectbox("分類", cats, key="c1")
     df_f = df_inv if cat_sel == "全部" else df_inv[df_inv["分類"] == cat_sel]
     t_list = df_f["品名規格"].tolist()
+    
     if not t_list:
         st.warning("無資料")
     else:
         t_name = st.selectbox("刀具", t_list, key="n1")
+        # 獲取索引 (idx + 2 為 Google Sheet 的實際行號，第一列是標題)
         idx = df_inv[df_inv["品名規格"] == t_name].index[0]
         t_sel = df_inv.loc[idx, "刀具編號"]
         cur_stock = int(df_inv.loc[idx, "目前庫存"])
         st.info(f"編號:{t_sel} | 儲位:{df_inv.loc[idx, '儲位']} | 庫存:{cur_stock}")
+        
         if "q_val" not in st.session_state: st.session_state["q_val"] = 1
         col1, col2 = st.columns(2)
         with col1: 
             if st.button("➕ 加1", key="b_add"): st.session_state["q_val"] += 1; st.rerun()
         with col2: 
             if st.button("🔄 歸1", key="b_res"): st.session_state["q_val"] = 1; st.rerun()
+            
         qty = st.number_input("數量", min_value=1, value=st.session_state["q_val"])
         st.session_state["q_val"] = qty
-        # 從 df_set 動態抓取清單，並過濾空值
+        
         u_list = df_set["人員"].replace("", pd.NA).dropna().unique().tolist()
         m_list = df_set["機台"].replace("", pd.NA).dropna().tolist()
 
@@ -75,43 +79,36 @@ with t1:
         m = st.selectbox("機台", m_list)
         r = st.selectbox("原因", ["正常磨損", "斷刀", "架機", "其他"])
         wo = st.text_input("工單").strip()
+
         if st.button("確認領用", type="primary", use_container_width=True):
             if qty > cur_stock:
                 st.error("❌ 庫存不足！")
             else:
+                # 準備要傳送的資料
+                payload = {
+                    "action": "領用",
+                    "row": idx + 2,  # 告訴 Script 要更新第幾行
+                    "qty": qty,
+                    "t_sel": t_sel,
+                    "u": u,
+                    "m": m,
+                    "r": r,
+                    "wo": wo
+                }
                 try:
-                    # 1. 執行寫入 (將 get_sh() 連線儲存為 sh，避免重複呼叫)
-                    sh = get_sh()
-                    new_s = cur_stock - qty
-                    
-                    # 更新庫存
-                    sh.worksheet("inventory").update_cell(idx + 2, df_inv.columns.get_loc("目前庫存") + 1, new_s)
-                    
-                    # 寫入紀錄 (確保 datetime 已匯入)
-                    sh.worksheet("logs").append_row([
-                        datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
-                        "領用", t_sel, qty, u, m, r, wo
-                    ])
-                    
-                    # 2. 領用成功後的處理
-                    st.success("✅ 領用成功！")
-                    
-                    # 關鍵步驟：清除緩存並強制重整頁面，這樣你馬上就能看到最新的庫存數據
-                    st.cache_data.clear()
-                    st.rerun()
-                    
+                    # 使用 requests 發送 POST
+                    response = requests.post(WEBHOOK_URL, json=payload)
+                    if response.status_code == 200:
+                        st.success(f"✅ 已領刀：{t_name} x {qty}")
+                        st.session_state["q_val"] = 1
+                        st.cache_data.clear()
+                        import time
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error("寫入失敗，請檢查網路")
                 except Exception as e:
-                    # 如果寫入失敗，顯示具體錯誤，方便除錯
-                    st.error(f"寫入失敗，請檢查權限或連線：{e}")
-                
-                # 這裡增加提示停留
-                st.success(f"✅ 已領刀：{t_name} x {qty}")
-                st.session_state["q_val"] = 1
-                st.cache_data.clear()
-                
-                import time
-                time.sleep(2) # 強制停留 2 秒，讓你絕對看得到
-                st.rerun()
+                    st.error(f"連線錯誤: {e}")
 
 with t2:
     if st.text_input("密碼", type="password", key="pw2") == "1234":
