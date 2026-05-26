@@ -60,7 +60,7 @@ with t1:
     _, df_log, df_set = st.session_state.data
     
 # --- 1. 直接開啟相機掃描區 ---
-with st.expander("📷 掃描 QR Code"):
+    with st.expander("📷 掃描 QR Code"):
         img_file = st.camera_input("直接拍攝刀具 QR Code")
         
         if img_file is not None:
