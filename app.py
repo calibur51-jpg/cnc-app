@@ -12,13 +12,10 @@ SET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTo2vi_36qF4mzPkxzNOJ
 # --- 2. 函數區 ---
 @st.cache_resource
 def get_sh():
-    # 這裡我們不使用 json.loads，而是將字串轉為記憶體中的檔案流
-    # 這能避開字元編碼解析的所有陷阱
-    json_str = st.secrets["GCP_JSON_STRING"]
-    file_stream = io.StringIO(json_str)
-    
-    # gspread 的 service_account 可以直接接收一個類似檔案的物件 (file-like object)
-    return gspread.service_account(filename=file_stream).open_by_key("1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8")
+    # 這是處理所有特殊符號最穩定的做法
+    raw_json = st.secrets["GCP_JSON"]
+    creds_dict = json.loads(raw_json)
+    return gspread.service_account_from_dict(creds_dict).open_by_key("1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8")
     
 def get_data():
     try:
