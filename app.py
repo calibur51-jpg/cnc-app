@@ -1,9 +1,6 @@
 import streamlit as st
-import json
-import pandas as pd
-from google.oauth2.service_account import Credentials
 import gspread
-import io
+from google.oauth2.service_account import Credentials
 
 # --- 1. 設定區 ---
 INV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTo2vi_36qF4mzPkxzNOJPTip7y-TXJLBm745noRRa4v_L_qkJ0DhFkaJ7tvYLCYWdFV3wbXOtH--zJ/pub?gid=0&single=true&output=csv"
@@ -13,16 +10,22 @@ SET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTo2vi_36qF4mzPkxzNOJ
 # --- 2. 函數區 ---
 @st.cache_resource
 def get_sh():
-    # 1. 讀取 Secrets
-    creds_dict = json.loads(st.secrets["GCP_JSON"])
+    # 這裡直接把 secrets['gcp'] 當作一個字典使用
+    creds_dict = dict(st.secrets["gcp"])
     
-    # 2. 這是 Google 官方標準認證方式，它對格式的容錯率比 gspread 高得多
+    # 建立認證物件
     scopes = ["https://www.googleapis.com/auth/spreadsheets"]
     creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
     
-    # 3. 將認證物件傳給 gspread
-    gc = gspread.authorize(creds)
-    return gc.open_by_key("1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8")
+    # 回傳連線物件
+    return gspread.authorize(creds).open_by_key("1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8")
+
+# 呼叫測試
+try:
+    sh = get_sh()
+    st.success("連線成功！")
+except Exception as e:
+    st.error(f"連線失敗，請檢查權限設定：{e}")
     
 def get_data():
     try:
