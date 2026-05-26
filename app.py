@@ -52,6 +52,9 @@ t1, t2, t3, t4 = st.tabs(["領用", "後台", "紀錄", "進貨與盤點系統"]
 with t1:
     st.header("🔪 刀具領用")
     
+    # --- 載入資料 (這行漏掉了，補上！) ---
+    _, df_log, df_set = st.session_state.data
+    
     # --- 1. 掃描區 ---
     with st.expander("📷 掃描 QR Code"):
         img_file = st.file_uploader("點擊這裡拍照/上傳以掃描", type=["jpg", "jpeg", "png"])
@@ -67,38 +70,30 @@ with t1:
                 st.warning("⚠️ 無法識別此圖片，請確認 QR Code 清晰度")
 
     # --- 2. 篩選與選擇邏輯 ---
-    # 決定預設選項索引
     default_idx = 0
     cat_sel = "全部"
     
-    # 如果有掃描結果，自動帶入該刀具的分類與品名索引
     if "scanned_id" in st.session_state:
         match = df_inv[df_inv["刀具編號"].astype(str) == st.session_state.scanned_id]
         if not match.empty:
             cat_sel = match.iloc[0]["分類"]
-            # 處理掃描後要自動選到的品名
             target_name = match.iloc[0]["品名規格"]
-            del st.session_state.scanned_id # 清除暫存
+            del st.session_state.scanned_id
         else:
             st.error("❌ 系統中找不到此編號的刀具")
 
-    # 分類篩選
     cats = ["全部"] + df_inv["分類"].unique().tolist()
-    # 注意：這裡將分類預選設為掃描到的分類
     cat_idx = cats.index(cat_sel) if cat_sel in cats else 0
     cat_sel = st.selectbox("分類", cats, index=cat_idx, key="t1_cat")
     
-    # 篩選刀具清單
     df_f = df_inv if cat_sel == "全部" else df_inv[df_inv["分類"] == cat_sel]
     t_list = df_f["品名規格"].tolist()
     
-    # 刀具選單 (處理掃描後的預設值)
     if "target_name" in locals() and target_name in t_list:
         default_idx = t_list.index(target_name)
         
     t_name = st.selectbox("選擇領用刀具", t_list, index=default_idx, key="t1_tool")
     
-    # 取得選定刀具資訊
     idx = df_inv[df_inv["品名規格"] == t_name].index[0]
     t_sel = df_inv.loc[idx, "刀具編號"]
     cur_stock = int(df_inv.loc[idx, "目前庫存"])
@@ -107,7 +102,6 @@ with t1:
     
     # --- 3. 數量調整 ---
     if "q_val" not in st.session_state: st.session_state["q_val"] = 1
-    
     c1, c2 = st.columns(2)
     with c1: 
         if st.button("➕ 加1", key="b_add"): st.session_state["q_val"] += 1; st.rerun()
@@ -135,6 +129,7 @@ with t1:
                 "qty": qty, "u": u, "m": m, "r": r, "wo": wo
             }
             try:
+                # 請確認你的檔案最上方有 import requests
                 response = requests.post(WEBHOOK_URL, json=payload)
                 if response.status_code == 200:
                     st.session_state.data[0].loc[idx, "目前庫存"] -= qty
