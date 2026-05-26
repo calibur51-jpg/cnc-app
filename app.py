@@ -42,7 +42,7 @@ if st.button("🔄 立即同步最新庫存"):
 df_inv, df_log, df_set = get_data()
 
 # 在此加入你原本的 TAB 與扣庫存邏輯 (呼叫 get_sh().worksheet(...).update_cell 時會自動運作)
-tab1, tab2, tab3 = st.tabs(["領用", "後台", "紀錄"])
+t1, t2, t3 = st.tabs(["領用", "後台", "紀錄"])
 with t1:
     cats = ["全部"] + df_inv["分類"].unique().tolist()
     cat_sel = st.selectbox("分類", cats, key="c1")
