@@ -39,8 +39,6 @@ creds_dict = {
 
 
     
-    # 【關鍵】使用 gspread 的原生認證，它會自動處理編碼，不會被底層模組報錯
-    return gspread.service_account_from_dict(creds_dict).open_by_key("1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8")
 
 # --- 3. 介面 ---
 st.title("明星精密刀具管理系統")
