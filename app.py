@@ -52,40 +52,46 @@ t1, t2, t3, t4 = st.tabs(["領用", "後台", "紀錄", "進貨與盤點系統"]
 with t1:
     st.header("🔪 刀具領用")
     
-    # --- 使用 Camera Input 取代套件 ---
-    # 這裡我們開一個展開區，讓師傅打開相機才掃描，不佔版面
+    # --- 掃描功能區 ---
     with st.expander("📷 掃描 QR Code"):
         img_file = st.camera_input("拍攝刀具 QR Code")
         if img_file:
-            # 將圖片轉為 OpenCV 格式
             img = Image.open(img_file)
             img_array = np.array(img)
-            
-            # 使用 OpenCV 內建的 QR 偵測器
             detector = cv2.QRCodeDetector()
             data, _, _ = detector.detectAndDecode(img_array)
-            
             if data:
                 st.session_state.scanned_id = data
                 st.success(f"✅ 識別成功！編號: {data}")
             else:
-                st.warning("⚠️ 讀取失敗，請重新拍攝或檢查 QR Code 清晰度")
+                st.warning("⚠️ 讀取失敗，請重新拍攝")
 
-    # 自動選擇邏輯
+    # --- 自動選擇邏輯 ---
+    # 確保 default_tool_idx 在範圍內
     default_tool_idx = 0
+    t_list = df_inv["品名規格"].tolist() # 確保這行在這裡已經定義
+    
     if "scanned_id" in st.session_state:
-        # 尋找掃到的編號
         match = df_inv[df_inv["刀具編號"].astype(str) == st.session_state.scanned_id]
         if not match.empty:
-            default_tool_idx = df_inv.index.get_loc(match.index[0])
-            # 找到後刪除狀態，避免每次重整都跳出來
+            # 確保找到的 index 有效
+            idx_found = df_inv.index.get_loc(match.index[0])
+            # 把 index 轉成 t_list 的位置
+            # 注意：這裡假設 t_list 是完整的 df_inv list
+            try:
+                default_tool_idx = t_list.index(match.iloc[0]["品名規格"])
+            except:
+                default_tool_idx = 0
             del st.session_state.scanned_id
-        else:
-            st.error("❌ 系統中找不到此編號")
 
-    # 顯示選單 (保持你原本的領用邏輯)
-    t_list = df_inv["品名規格"].tolist()
-    t_name = st.selectbox("選擇領用刀具", t_list, index=default_tool_idx, key="n1")
+    # --- 修正後的 Selectbox ---
+    # 改成唯一的 key，避免重複錯誤
+    t_name = st.selectbox("選擇領用刀具", t_list, index=default_tool_idx, key="t1_tool_select")
+    
+    # 取得對應資訊
+    idx = df_inv[df_inv["品名規格"] == t_name].index[0]
+    t_sel = df_inv.loc[idx, "刀具編號"]
+    cur_stock = int(df_inv.loc[idx, "目前庫存"])
     
     cats = ["全部"] + df_inv["分類"].unique().tolist()
     cat_sel = st.selectbox("分類", cats, key="c1")
