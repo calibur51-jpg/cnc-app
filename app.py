@@ -57,41 +57,53 @@ with t1:
     st.header("🔪 刀具領用")
     
     # --- 1. 載入資料 ---
+    # 確保 st.session_state.data 是最新的
     _, df_log, df_set = st.session_state.data
     
     # --- 2. 掃描 QR Code 區 ---
     with st.expander("📷 掃描 QR Code"):
         img_file = st.camera_input("直接拍攝刀具 QR Code")
         
-        # 只要有拍照，且狀態還沒被記錄，就處理
         if img_file is not None and "scanned_id" not in st.session_state:
-            img = Image.open(img_file)
-            decoded_objects = decode(img)
-            
-            if decoded_objects:
-                data = decoded_objects[0].data.decode('utf-8')
-                st.session_state.scanned_id = data
-                st.success(f"✅ 識別成功！編號: {data}")
-                st.rerun() # 觸發重跑以更新下方選單
-            else:
-                st.warning("⚠️ 無法識別，請確保 QR Code 對準鏡頭且無強烈反光")
+            with st.spinner("正在識別 QR Code..."):
+                img = Image.open(img_file)
+                
+                # 【優化】縮放圖片以提升 pyzbar 識別率 (這點對手機很重要)
+                # 限制最大邊長為 1024，保持比例
+                w, h = img.size
+                if max(w, h) > 1024:
+                    scale = 1024 / max(w, h)
+                    img = img.resize((int(w * scale), int(h * scale)), Image.Resampling.LANCZOS)
+                
+                decoded_objects = decode(img)
+                
+                if decoded_objects:
+                    data = decoded_objects[0].data.decode('utf-8')
+                    st.session_state.scanned_id = data
+                    # 顯示短暫成功訊息，然後立即 rerun 以連動選單
+                    st.success(f"✅ 識別成功！編號: {data}")
+                    time.sleep(0.5)
+                    st.rerun() 
+                else:
+                    st.warning("⚠️ 無法識別，請嘗試：\n1. 對準 QR Code (螢幕需清晰)\n2. 稍微拿遠一點再對焦")
 
-    # --- 3. 篩選與選擇邏輯 (自動跳轉核心) ---
+    # --- 3. 篩選與選擇邏輯 ---
     cat_sel = "全部"
     target_tool_name = None
 
-    # 如果有掃碼結果，進行反查
     if "scanned_id" in st.session_state:
+        # 強制轉型為字串進行比對
         match = df_inv[df_inv["刀具編號"].astype(str) == st.session_state.scanned_id]
         if not match.empty:
             cat_sel = match.iloc[0]["分類"]
             target_tool_name = match.iloc[0]["品名規格"]
-            del st.session_state.scanned_id # 清除狀態
+            # 處理完就刪除狀態，避免重複觸發
+            del st.session_state.scanned_id 
         else:
-            st.error(f"❌ 找不到編號 {st.session_state.scanned_id} 的刀具")
+            st.error(f"❌ 系統中找不到編號 {st.session_state.scanned_id} 的刀具")
             del st.session_state.scanned_id
 
-    # A. 選擇分類 (強制跳轉)
+    # A. 選擇分類 (利用反查出的 cat_sel 設定 index)
     cats = ["全部"] + df_inv["分類"].unique().tolist()
     cat_idx = cats.index(cat_sel) if cat_sel in cats else 0
     cat_sel = st.selectbox("分類", cats, index=cat_idx, key="t1_cat")
@@ -100,28 +112,39 @@ with t1:
     df_f = df_inv if cat_sel == "全部" else df_inv[df_inv["分類"] == cat_sel]
     t_list = df_f["品名規格"].tolist()
     
-    # C. 選擇刀具 (強制跳轉)
+    # C. 選擇刀具 (利用反查出的 target_tool_name 設定 index)
     default_idx = 0
     if target_tool_name and target_tool_name in t_list:
         default_idx = t_list.index(target_tool_name)
     
+    # 確保 default_idx 不會超過 t_list 的長度
+    if default_idx >= len(t_list): default_idx = 0
+
     t_name = st.selectbox("選擇領用刀具", t_list, index=default_idx, key="t1_tool")
     
-    # 取得選定刀具資訊
-    idx = df_inv[df_inv["品名規格"] == t_name].index[0]
-    t_sel = df_inv.loc[idx, "刀具編號"]
-    cur_stock = int(df_inv.loc[idx, "目前庫存"])
-    
-    st.info(f"編號:{t_sel} | 儲位:{df_inv.loc[idx, '儲位']} | 庫存:{cur_stock}")
+    # D. 取得選定刀具詳細資訊
+    tool_info = df_inv[df_inv["品名規格"] == t_name]
+    if not tool_info.empty:
+        idx = tool_info.index[0]
+        t_sel = tool_info.loc[idx, "刀具編號"]
+        cur_stock = int(tool_info.loc[idx, "目前庫存"])
+        st.info(f"編號:{t_sel} | 儲位:{tool_info.loc[idx, '儲位']} | 庫存:{cur_stock}")
+    else:
+        st.error("❌ 找不到選定刀具的資訊")
+        st.stop()
     
     # --- 4. 數量調整 ---
     if "q_val" not in st.session_state: st.session_state["q_val"] = 1
     
     c1, c2 = st.columns(2)
     with c1: 
-        if st.button("➕ 加1", key="b_add"): st.session_state["q_val"] += 1; st.rerun()
+        if st.button("➕ 加1", key="b_add"): 
+            st.session_state["q_val"] += 1
+            st.rerun()
     with c2: 
-        if st.button("🔄 歸1", key="b_res"): st.session_state["q_val"] = 1; st.rerun()
+        if st.button("🔄 歸1", key="b_res"): 
+            st.session_state["q_val"] = 1
+            st.rerun()
     
     qty = st.number_input("數量", min_value=1, value=st.session_state["q_val"])
     st.session_state["q_val"] = qty
@@ -135,9 +158,12 @@ with t1:
     wo = st.text_input("工單", key="t1_wo").strip()
     
     # --- 6. 確認領用 ---
+    # 先建立一個空區域用來顯示結果訊息
+    msg_area = st.empty()
+    
     if st.button("確認領用", type="primary", use_container_width=True):
         if qty > cur_stock:
-            st.error("❌ 庫存不足！")
+            msg_area.error("❌ 庫存不足！")
         else:
             with st.spinner("正在執行領用作業..."):
                 payload = {
@@ -147,15 +173,21 @@ with t1:
                 try:
                     response = requests.post(WEBHOOK_URL, json=payload, timeout=10)
                     if response.status_code == 200:
+                        # 更新本地 Session State 庫存
                         st.session_state.data[0].loc[idx, "目前庫存"] -= qty
+                        # 數量歸1
                         st.session_state["q_val"] = 1
-                        st.toast(f"✅ 已領刀：{t_name} x {qty}", icon="✅")
-                        time.sleep(1)
+                        
+                        # --- 修正：確認訊息顯示在下方，不使用 toast ---
+                        msg_area.success(f"✅ 已領刀：{t_name} x {qty}")
+                        
+                        # 給使用者 1.5 秒確認訊息，然後才重整理畫面
+                        time.sleep(1.5)
                         st.rerun()
                     else:
-                        st.error(f"❌ 寫入失敗 (伺服器回應: {response.status_code})")
+                        msg_area.error(f"❌ 寫入失敗 (伺服器回應: {response.status_code})")
                 except Exception as e:
-                    st.error(f"❌ 網路連線錯誤，請稍後再試。")
+                    msg_area.error(f
 with t2:
     st.header("🔒 管理員專區")
     pw = st.text_input("輸入管理員密碼", type="password", key="pw_t2")
