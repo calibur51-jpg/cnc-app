@@ -167,10 +167,9 @@ with t2:
                 st.success("✅ 建檔成功！系統已同步。")
                 del st.session_state.last_action
             
-            # 💡 自動抓取現有 Sheets 裡面的所有分類，並補上「其他」供新種類建檔
             category_options = df_inv["分類"].dropna().unique().tolist()
             if "其他" not in category_options:
-                category_options.append("其他")
+                category_options.append("amp;其他")
                 
             with st.form("new_tool_form", clear_on_submit=True):
                 new_id = st.text_input("刀具編號")
@@ -186,40 +185,51 @@ with t2:
                     else:
                         st.error("❌ 建檔失敗")
                         
-        # --- 2. 庫存校正區塊 (終極修復防退版) ---
+        # --- 2. 庫存校正區塊 (💡 已加入完全防退鎖) ---
         elif mode == "庫存校正":
             st.subheader("🔧 庫存數量校正")
             if st.session_state.get("last_action") == "校正":
                 st.success("✅ 庫存校正成功！")
                 del st.session_state.last_action
                 
-            target_tool = st.selectbox("選擇刀具", df_inv["品名規格"].tolist())
-            current_inv = df_inv[df_inv["品名規格"] == target_tool].iloc[0]
-            
-            # 💡 終極防呆：先強轉數字，用 astype(int) 確保型態，若為負數則用 max(0, ...) 轉為 0，防 Streamlit 閃退
-            try:
-                raw_qty = int(pd.Series(current_inv['currently_stock']).to_numeric(errors='coerce').fillna(0).astype(int).iloc[0])
-            except:
-                try:
-                    raw_qty = int(pd.Series(current_inv['目前庫存']).to_numeric(errors='coerce').fillna(0).astype(int).iloc[0])
-                except:
-                    raw_qty = 0
+            tool_list_t2 = df_inv["品名規格"].tolist()
+            if not tool_list_t2:
+                st.warning("⚠️ 目前庫存表中沒有任何刀具資料。")
+            else:
+                target_tool = st.selectbox("選擇刀具", tool_list_t2)
                 
-            default_qty = max(0, raw_qty) 
-            st.write(f"目前庫存：{raw_qty} | 儲位：{current_inv['儲位']}")
-            
-            # 使用安全處理後的 default_qty，確保絕對不低於 min_value=0
-            new_adj_qty = st.number_input("輸入正確庫存總數", min_value=0, value=default_qty)
-            
-            if st.button("確認校正"):
-                payload = {"action": "校正", "t_sel": current_inv['刀具編號'], "new_qty": new_adj_qty}
-                if post_data_to_sheet(payload):
-                    st.session_state.last_action = "校正"
-                    idx = df_inv[df_inv["刀具編號"] == current_inv['刀具編號']].index[0]
-                    st.session_state.data[0].loc[idx, "目前庫存"] = new_adj_qty
-                    st.rerun()
+                # 💡 核心防呆：先抓出符合品名的資料集
+                matched_inv_df = df_inv[df_inv["品名規格"] == target_tool]
+                
+                # 確保真的有這把刀的資料，才執行後續的 iloc[0] 與庫存轉換
+                if not matched_inv_df.empty:
+                    current_inv = matched_inv_df.iloc[0]
+                    
+                    try:
+                        raw_qty = int(pd.Series(current_inv['currently_stock']).to_numeric(errors='coerce').fillna(0).astype(int).iloc[0])
+                    except:
+                        try:
+                            raw_qty = int(pd.Series(current_inv['目前庫存']).to_numeric(errors='coerce').fillna(0).astype(int).iloc[0])
+                        except:
+                            raw_qty = 0
+                        
+                    default_qty = max(0, raw_qty) 
+                    st.write(f"目前庫存：{raw_qty} | 儲位：{current_inv['儲位']}")
+                    
+                    new_adj_qty = st.number_input("輸入正確庫存總數", min_value=0, value=default_qty)
+                    
+                    if st.button("確認校正"):
+                        payload = {"action": "校正", "t_sel": current_inv['刀具編號'], "new_qty": new_adj_qty}
+                        if post_data_to_sheet(payload):
+                            st.session_state.last_action = "校正"
+                            idx = df_inv[df_inv["刀具編號"] == current_inv['刀具編號']].index[0]
+                            st.session_state.data[0].loc[idx, "目前庫存"] = new_adj_qty
+                            st.rerun()
+                        else:
+                            st.error("❌ 校正失敗")
                 else:
-                    st.error("❌ 校正失敗")
+                    st.warning("⚠️ 刀具資料同步中，請稍候...")
+
     elif pw != "":
         st.warning("⚠️ 密碼錯誤，請重新輸入")
     else:
