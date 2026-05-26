@@ -20,13 +20,21 @@ def get_data():
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
 def get_sh():
+    # 改用 gspread 推薦的直接從 JSON 檔認證方式
+    # 但為了繞過轉譯問題，我們用 json.dumps 動態生成
+    import json
+    
     pk_parts = ["-----BEGIN PRIVATE KEY-----", "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDBXszQ8ez3DvoD", "9jfe5mPEKVHwp03WULp2E5jmEfZNnpmoVnNdXm0TC6d4z9Zd2FKRRntvj7m1Bzw2", "xkJSkemb047TKp0B+jFDucJJzkTtNDAiaM77Xk44I4AjTkdQFYOgHjDs+hAMmzvS", "8J3LAcq4FLOnW3yv7Ig0J7biahdKaAa6x8o4RW6nQpz4H3owIgjxGcROobvsmMB", "iOaLQmgfVToLlAQcCJ4+0gW+3jHJU1x/gTMmITPWUhG+9Kg0CNSTdr3v3qhk7T8Y", "tWaMB1nkXfAmFwL6xayZVVVbDa42d7T+WEGPNdj83xkG4HE/MEQ+un5A1ryvtazW", "VCp0Ni6JAgMBAAECggEAEqP2e0lpAhd04Tsj32ZG9YbUre3Y1mk1klKZDYurekfI", "0PYVfKmQuvJniGFDrUwASJ4aYdKhcKqkArU5uT803XdHSEKuPD2vsFNIwAfk89dR", "MQ34rvlkMav1ayHdhMIwLDgg2AVSlP6FZbQZh/NyJOzk9SP/+O8Eob921SxsNpk1", "6Pf3F7HzO8MPhwk6UTYaAWyT0Rlj6wwrEe6lZpZd7uwPQqmujV6GtKIcrs4+tguM", "sU2/JNRkt3Nl0BBcKaD+en6bNtk1PYflyzap0ta+mKQ3kEsKG2+ozCvUDmTrykij", "HLSY8Yia8z9Rg5SxqIZql+kF6FVEwxJnJzTotclYsQKBgQDm2eE9E6w0Bgimv2Fi", "vXWp33jQv7X2rdmWM0Sh5qKRXVIz2ezD3LBSIvffCsBmfkVQNAM5Gaa3ZKsPuwbc", "D7wMHBIEpony3DCQZA0R0KIgqZG290Tzh42M9ZBqCDcuvPCiks+mpATtwUSn2HfA", "a0kJ/kcZ0Za8v3yfphei9IyFkQKBgQDWb6H4n/1yYPziU6N1raAW8H+9Qd74VIIl", "JxWekO4gLmwmZP8ZGf79ZO9jCde4tmF/Yxp6av5UzMfdgH1/ebfU5Eqs1olWhD+u", "OFGiND49SAkdKCFcKdbOgdpGZubsBg8wJiRfxa5sx/lp/3OD93FTRU21p93eLiSr", "kUsN+L+9eQKBgCUYT8RDvAEkExHQYPK/5P9mBIDuvWulJfinxliJugfHyiTA2PXk", "KYUZT2FM1fviQHsR0I7FW2/OwlolwIVuFdaQUCjlJfebgEZDfYImV1cOSHbxJuhH", "GOzUrN8M8OkWvUgydSGe65fU3ZZnB18pHjR34q74adNspbb1toid6VKxAoGBAI5d", "MtWTsnpbdcj06lLYYK6aINSPhO6tfHIaDrplUhK/f0HGT65kmeu1NVE1WajiPLyM", "GSopGo1GH3MpOSiGsMuAfStei3OK/ZQ3A8uCj8ezqYlX+T3s8RXNFBMlgi40n6TB", "zehfn7vM0APVeuWkQ/Ka0krGFgDJ9cKKBaBTA0lRAoGAZljN5SUQNMkT8p8bFcAL", "r1RGmbRgKm/yxfcMkW52R8bOBmShinliWkr+4/gHToXzF9N9qX6eou2UMIBANK2k", "83jrBGPKFby5Zv4y5uKX6/1HKHmmi3lWqCgHgzU37DRkoowldA26jBGZiXFx336H", "s+VRW8oMlI8KCtPbs86hoEY=", "-----END PRIVATE KEY-----"]
     
-    creds_dict = {
+    # 這裡刻意加入轉譯，確保 GoogleAuth 讀取到的是最單純的字串
+    pk = "\n".join(pk_parts)
+    
+    # 使用 gspread 的專用認證邏輯 (這種方式對於 key 的處理最寬容)
+    gc = gspread.service_account_from_dict({
         "type": "service_account",
         "project_id": "cnc-system-497409",
         "private_key_id": "d3209413a7333a6627e7e82b1470c421887f1bcb",
-        "private_key": "\n".join(pk_parts),
+        "private_key": pk,
         "client_email": "app-484@cnc-system-497409.iam.gserviceaccount.com",
         "client_id": "102780254846012931462",
         "auth_uri": "https://accounts.google.com/o/oauth2/auth",
@@ -34,13 +42,8 @@ def get_sh():
         "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
         "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/app-484%40cnc-system-497409.iam.gserviceaccount.com",
         "universe_domain": "googleapis.com"
-    }
-    
-    creds = service_account.Credentials.from_service_account_info(
-        creds_dict,
-        scopes=["https://www.googleapis.com/auth/spreadsheets"]
-    )
-    return gspread.authorize(creds).open_by_key("1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8")
+    })
+    return gc.open_by_key("1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8")
 
 # --- 3. 介面 ---
 st.title("明星精密刀具管理系統")
