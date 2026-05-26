@@ -1,29 +1,23 @@
 import streamlit as st
 import pandas as pd
-import gspread
-import json
-from google.oauth2.service_account import Credentials
 
-def get_gc():
-    # 這是從 Secrets 直接載入，不會受換行符號影響
-    creds_dict = json.loads(st.secrets["GCP_JSON"])
-    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-    creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-    return gspread.authorize(creds)
+# 這裡換成你那三個分頁的 CSV 下載連結
+INV_URL = "https://docs.google.com/spreadsheets/d/1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8/export?format=csv&gid=0"
+LOG_URL = "https://docs.google.com/spreadsheets/d/1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8/export?format=csv&gid=1320901506" # 請替換為logs分頁的gid
+SET_URL = "https://docs.google.com/spreadsheets/d/1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8/export?format=csv&gid=657176737" # 請替換為Settings分頁的gid
 
-SPREADSHEET_ID = "1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8"
-
-@st.cache_data(ttl=0)
+@st.cache_data(ttl=60)
 def get_data():
-    gc = get_gc()
-    sh = gc.open_by_key(SPREADSHEET_ID)
-    inv = pd.DataFrame(sh.worksheet("inventory").get_all_records())
-    log = pd.DataFrame(sh.worksheet("logs").get_all_records())
-    settings_data = sh.worksheet("Settings").get_all_records()
-    df_set = pd.DataFrame(settings_data)
+    inv = pd.read_csv(INV_URL)
+    log = pd.read_csv(LOG_URL)
+    df_set = pd.read_csv(SET_URL)
     return inv, log, df_set
 
+# 初始化資料
 df_inv, df_log, df_set = get_data()
+
+st.write("資料讀取成功！")
+st.dataframe(df_inv)
 
 st.set_page_config(page_title="CNC", layout="wide")
 st.title("明星精密刀具管理系統")
