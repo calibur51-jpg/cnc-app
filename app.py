@@ -37,11 +37,6 @@ if 'data' not in st.session_state:
 if st.button("🔄 立即同步最新庫存", key="sync_data_button"):
     st.session_state.data = get_data()
     st.rerun()
-# --- 5. 介面 ---
-st.title("明星精密刀具管理系統")
-if st.button("🔄 立即同步最新庫存"):
-    st.cache_data.clear()
-    st.rerun()
 
 df_inv, df_log, df_set = get_data()
 
