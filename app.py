@@ -37,8 +37,7 @@ creds_dict = {
     "universe_domain": "googleapis.com"
 }
 
-# 建立憑證
-creds = service_account.Credentials.from_service_account_info(creds_dict)
+
 
 # 授權 gspread
 client = gspread.authorize(creds)
