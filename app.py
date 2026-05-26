@@ -87,51 +87,42 @@ with t1:
                 else:
                     st.warning("⚠️ 無法識別，請嘗試：\n1. 對準 QR Code (螢幕需清晰)\n2. 稍微拿遠一點再對焦")
 
-    # --- 3. 篩選與選擇邏輯 ---
-    cat_sel = "全部"
-    target_tool_name = None
-
+# --- 3. 篩選與選擇邏輯 (自動跳轉優化版) ---
+    
+    # 如果有掃到 QR Code，直接更新選單的 Session State
     if "scanned_id" in st.session_state:
-        # 強制轉型為字串進行比對
         match = df_inv[df_inv["刀具編號"].astype(str) == st.session_state.scanned_id]
         if not match.empty:
             cat_sel = match.iloc[0]["分類"]
             target_tool_name = match.iloc[0]["品名規格"]
-            # 處理完就刪除狀態，避免重複觸發
-            del st.session_state.scanned_id 
+            
+            # 【關鍵】強制修改選單的 Session State，這會直接讓選單跳轉
+            st.session_state["t1_cat"] = cat_sel
+            st.session_state["t1_tool"] = target_tool_name
+            
+            del st.session_state.scanned_id # 清除狀態
         else:
-            st.error(f"❌ 系統中找不到編號 {st.session_state.scanned_id} 的刀具")
+            st.error(f"❌ 找不到編號 {st.session_state.scanned_id} 的刀具")
             del st.session_state.scanned_id
 
-    # A. 選擇分類 (利用反查出的 cat_sel 設定 index)
+    # A. 選擇分類 (現在它會自動讀取上面更新過的 st.session_state["t1_cat"])
     cats = ["全部"] + df_inv["分類"].unique().tolist()
-    cat_idx = cats.index(cat_sel) if cat_sel in cats else 0
-    cat_sel = st.selectbox("分類", cats, index=cat_idx, key="t1_cat")
+    # 這裡如果不特別設 index，它會自動讀取 session_state["t1_cat"] 的值
+    cat_sel = st.selectbox("分類", cats, key="t1_cat")
     
     # B. 過濾刀具清單
     df_f = df_inv if cat_sel == "全部" else df_inv[df_inv["分類"] == cat_sel]
     t_list = df_f["品名規格"].tolist()
     
-    # C. 選擇刀具 (利用反查出的 target_tool_name 設定 index)
-    default_idx = 0
-    if target_tool_name and target_tool_name in t_list:
-        default_idx = t_list.index(target_tool_name)
+    # C. 選擇刀具 (現在它會自動讀取上面更新過的 st.session_state["t1_tool"])
+    # 這裡做一個保護，如果 session 裡存的 tool 不在目前的清單，就預設選第一個
+    current_tool = st.session_state.get("t1_tool")
+    if current_tool not in t_list:
+        current_tool = t_list[0] if t_list else None
     
-    # 確保 default_idx 不會超過 t_list 的長度
-    if default_idx >= len(t_list): default_idx = 0
+    t_name = st.selectbox("選擇領用刀具", t_list, key="t1_tool")
 
-    t_name = st.selectbox("選擇領用刀具", t_list, index=default_idx, key="t1_tool")
-    
-    # D. 取得選定刀具詳細資訊
-    tool_info = df_inv[df_inv["品名規格"] == t_name]
-    if not tool_info.empty:
-        idx = tool_info.index[0]
-        t_sel = tool_info.loc[idx, "刀具編號"]
-        cur_stock = int(tool_info.loc[idx, "目前庫存"])
-        st.info(f"編號:{t_sel} | 儲位:{tool_info.loc[idx, '儲位']} | 庫存:{cur_stock}")
-    else:
-        st.error("❌ 找不到選定刀具的資訊")
-        st.stop()
+
     
     # --- 4. 數量調整 ---
     if "q_val" not in st.session_state: st.session_state["q_val"] = 1
