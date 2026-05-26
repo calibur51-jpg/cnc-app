@@ -274,60 +274,95 @@ with t3:
 with t4:
     st.header("📥 進貨與盤點系統")
     
-    # 選擇刀具
-    tool_list = df_inv["品名規格"].tolist()
-    sel_tool_name = st.selectbox("選擇刀具", tool_list, key="t4_tool")
-    tool_info = df_inv[df_inv["品名規格"] == sel_tool_name].iloc[0]
+    # 密碼保護 (使用不同的 key，避免與 T2 衝突)
+    pw = st.text_input("輸入管理員密碼", type="password", key="pw_t4")
     
-    # 顯示資訊 (若 F/G 欄名稱不同請修正，這邊假設是 '安全庫存' 和 '單價')
-    cur_qty = int(tool_info["目前庫存"])
-    safe_qty = int(tool_info["安全庫存"])
-    price = tool_info["單價"]
-    
-    c1, c2, c3 = st.columns(3)
-    c1.metric("目前庫存", cur_qty)
-    c2.metric("安全水位", safe_qty)
-    c3.metric("單價", f"${price}")
-    
-    if cur_qty <= safe_qty:
-        st.warning(f"⚠️ 庫存已低於安全水位 (<{safe_qty})，請準備進貨！")
+    if pw == "1234":
+        st.success("✅ 驗證成功")
+        st.divider()
 
-    # 操作模式
-    mode = st.radio("選擇操作模式", ["進貨", "盤點"], horizontal=True)
-    
-    with st.form("t4_form", clear_on_submit=True):
-        qty_input = st.number_input("數量", min_value=0, value=0)
-        u_input = st.text_input("操作人員")
+        # --- 1. 庫存預警看板 ---
+        low_stock_df = df_inv[df_inv["目前庫存"] <= df_inv["安全庫存"]]
+        if not low_stock_df.empty:
+            st.warning(f"🚨 注意：共有 {len(low_stock_df)} 項刀具低於安全庫存！")
+            with st.expander("📦 查看低庫存清單", expanded=True):
+                st.dataframe(low_stock_df[["品名規格", "目前庫存", "安全庫存", "儲位"]], use_container_width=True)
+        else:
+            st.success("✅ 所有庫存皆在安全水位以上，運作正常。")
+
+        st.divider()
+
+        # --- 2. 搜尋與篩選操作區 ---
+        st.subheader("⚙️ 選擇目標刀具")
         
-        btn_text = "確認進貨" if mode == "進貨" else "確認盤點"
-        if st.form_submit_button(btn_text):
-            payload = {
-                "action": mode,
-                "t_id": tool_info["刀具編號"],
-                "qty": qty_input,
-                "new_qty": qty_input,
-                "u": u_input
-            }
-            
-            # 呼叫後端 API
-            if post_data_to_sheet(payload):
-                # --- 關鍵：強迫更新 Session State 中的資料 ---
-                # 找到該刀具在全域資料表中的索引位置
-                idx = df_inv[df_inv["刀具編號"] == tool_info["刀具編號"]].index[0]
-                
-                # 判斷是進貨(加總)還是盤點(覆寫)
-                if mode == "進貨":
-                    st.session_state.data[0].loc[idx, "目前庫存"] += qty_input
-                else:
-                    st.session_state.data[0].loc[idx, "目前庫存"] = qty_input
-                
-                # 設定成功訊息並重整
-                st.session_state.success_msg = f"✅ {btn_text}成功！"
-                st.rerun()
-            else:
-                st.error("❌ 操作失敗，請檢查網路")
+        categories = ["全部"] + df_inv["分類"].dropna().unique().tolist()
+        c1, c2 = st.columns(2)
+        with c1:
+            sel_cat = st.selectbox("篩選分類", options=categories, key="t4_cat")
+        with c2:
+            search_text = st.text_input("關鍵字搜尋", key="t4_search")
 
-    # 顯示成功訊息 (放在按鈕下方)
-    if "success_msg" in st.session_state:
-        st.success(st.session_state.success_msg)
-        del st.session_state.success_msg
+        df_show = df_inv.copy()
+        if sel_cat != "全部":
+            df_show = df_show[df_show["分類"] == sel_cat]
+        if search_text:
+            mask = df_show["刀具編號"].astype(str).str.contains(search_text, case=False, na=False) | \
+                   df_show["品名規格"].astype(str).str.contains(search_text, case=False, na=False)
+            df_show = df_show[mask]
+
+        tool_options = df_show["品名規格"].tolist()
+        if not tool_options:
+            st.error("找不到符合條件的刀具")
+        else:
+            sel_tool_name = st.selectbox("搜尋結果", tool_options, key="t4_tool_sel")
+            tool_info = df_show[df_show["品名規格"] == sel_tool_name].iloc[0]
+
+            # 顯示資訊
+            cur_qty = int(tool_info["目前庫存"])
+            safe_qty = int(tool_info["安全庫存"])
+            price = tool_info["單價"]
+            
+            col_a, col_b, col_c = st.columns(3)
+            col_a.metric("目前庫存", cur_qty)
+            col_b.metric("安全水位", safe_qty)
+            col_c.metric("單價", f"${price}")
+
+            # --- 3. 進貨/盤點表單 ---
+            mode = st.radio("選擇操作模式", ["進貨", "盤點"], horizontal=True)
+            
+            with st.form("t4_action_form", clear_on_submit=True):
+                qty_input = st.number_input("數量", min_value=0, value=0)
+                u_input = st.text_input("操作人員")
+                
+                btn_text = "確認進貨 (累加)" if mode == "進貨" else "確認盤點 (覆寫)"
+                if st.form_submit_button(btn_text):
+                    payload = {
+                        "action": mode,
+                        "t_id": tool_info["刀具編號"],
+                        "qty": qty_input,
+                        "new_qty": qty_input,
+                        "u": u_input
+                    }
+                    
+                    if post_data_to_sheet(payload):
+                        # 強制更新記憶體
+                        idx = df_inv[df_inv["刀具編號"] == tool_info["刀具編號"]].index[0]
+                        if mode == "進貨":
+                            st.session_state.data[0].loc[idx, "目前庫存"] += qty_input
+                        else:
+                            st.session_state.data[0].loc[idx, "目前庫存"] = qty_input
+                        
+                        st.session_state.success_msg = f"✅ {btn_text}成功！"
+                        st.rerun()
+                    else:
+                        st.error("❌ 操作失敗")
+
+        # 成功通知
+        if "success_msg" in st.session_state:
+            st.success(st.session_state.success_msg)
+            del st.session_state.success_msg
+
+    elif pw != "":
+        st.warning("⚠️ 密碼錯誤")
+    else:
+        st.info("請輸入管理員密碼以存取進貨與盤點功能")
