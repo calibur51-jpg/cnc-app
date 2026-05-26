@@ -330,8 +330,15 @@ with t3:
                 
                 buf_m = io.BytesIO()
                 with pd.ExcelWriter(buf_m) as w:
-                    df_m_report.to_excel(w, sheet
-
+                    df_m_report.to_excel(w, sheet_name='本月財務對帳', index=False)
+                st.download_button(f"📥 下載 {current_month} 財務對帳 Excel", buf_m.getvalue(), f"CNC_Monthly_Financial_Report_{current_month}.xlsx")
+            else:
+                st.info("本月目前尚無任何進貨或領用紀錄。")
+                
+        else:
+            st.info("目前沒有歷史紀錄數據。")
+    else:
+        st.info("請輸入密碼以查看數據分析。")
 with t4:
     st.header("📥 進貨與盤點系統")
     pw = st.text_input("輸入管理員密碼", type="password", key="pw_t4")
