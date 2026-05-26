@@ -55,15 +55,18 @@ with t1:
     # --- 載入資料 ---
     _, df_log, df_set = st.session_state.data
     
-    # --- 1. 直接開啟相機掃描區 ---
+# --- 1. 直接開啟相機掃描區 ---
     with st.expander("📷 掃描 QR Code"):
         img_file = st.camera_input("直接拍攝刀具 QR Code")
         
+        # 這裡的 if 判斷式是關鍵！
         if img_file is not None:
+            # 只有在拍完照、img_file 有內容時，這行才會執行
             img = Image.open(img_file)
             img_array = np.array(img)
             detector = cv2.QRCodeDetector()
             data, _, _ = detector.detectAndDecode(img_array)
+            
             if data:
                 st.session_state.scanned_id = data
                 st.success(f"✅ 識別成功！編號: {data}")
@@ -72,7 +75,7 @@ with t1:
                 st.rerun() 
             else:
                 st.warning("⚠️ 無法識別，請對準 QR Code 並保持穩定")
-
+                
     # --- 2. 篩選與選擇邏輯 ---
     # 設定預設分類
     cat_sel = "全部"
