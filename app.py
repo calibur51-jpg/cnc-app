@@ -33,14 +33,8 @@ def get_data():
 
 # --- 4. 寫入邏輯 (透過 API，僅在需要時連線) ---
 def get_sh():
-    # 1. 讀取 Secrets
     creds_dict = json.loads(st.secrets["GCP_CREDENTIALS"])
     
-    # 2. 【核心修復】手動還原換行符號
-    # 這裡確保 private_key 字串裡面的 \n 是真實的換行，而不是字面上的反斜線加 n
-    creds_dict["private_key"] = creds_dict["private_key"].replace('\\n', '\n')
-    
-    # 3. 確保 Google 的認證模組直接讀取這個正確的格式
     creds = Credentials.from_service_account_info(
         creds_dict, 
         scopes=["https://www.googleapis.com/auth/spreadsheets"]
