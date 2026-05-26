@@ -12,7 +12,6 @@ SET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTo2vi_36qF4mzPkxzNOJ
 # --- 2. API 認證資訊 (使用字串載入，確保格式穩定) ---
 import json
 
-# 我們把整份 JSON 轉成一個單純的「字串」，避免程式解析引號或換行時出錯
 CRED_JSON_STR = """
 {
     "type": "service_account",
@@ -29,19 +28,16 @@ CRED_JSON_STR = """
 }
 """
 
+# --- 3. 讀取邏輯 (快且穩) ---
+@st.cache_data(ttl=60)
+def get_data():
+    return pd.read_csv(INV_URL, encoding='utf-8-sig'), pd.read_csv(LOG_URL, encoding='utf-8-sig'), pd.read_csv(SET_URL, encoding='utf-8-sig')
+
+# --- 4. 寫入邏輯 (透過 API，僅在需要時連線) ---
 def get_sh():
-    # 這裡確保它是指向我們剛剛定義的 creds_dict 變數，而不是舊的 CRED_DICT
     creds_dict = json.loads(CRED_JSON_STR)
     creds = Credentials.from_service_account_info(creds_dict, scopes=["https://www.googleapis.com/auth/spreadsheets"])
     return gspread.authorize(creds).open_by_key("1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8")
-# --- 3. 讀取邏輯 ---
-@st.cache_data(ttl=60)
-def get_data():
-    # 這裡直接讀取三個公開 URL，完全避開編碼與 API 認證問題
-    df_inv = pd.read_csv(INV_URL, encoding='utf-8-sig')
-    df_log = pd.read_csv(LOG_URL, encoding='utf-8-sig')
-    df_set = pd.read_csv(SET_URL, encoding='utf-8-sig')
-    return df_inv, df_log, df_set
 
 # API 寫入函數 (保留功能)
 def get_sh():
