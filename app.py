@@ -58,7 +58,7 @@ FULL_JSON_DATA = {
 }
 
 # --- 3. 讀取邏輯 (快且穩) ---
-@st.cache_resource(ttl=600)  # 建議將 ttl 改為 600 (10分鐘)，減少對 Google Sheet 的頻繁請求
+
 def get_data():
     try:
         df_inv = pd.read_csv(INV_URL, encoding='utf-8-sig')
@@ -69,7 +69,7 @@ def get_data():
         st.error(f"資料讀取失敗，請檢查網址或權限: {e}")
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame() # 回傳空的 DataFrame 避免程式崩潰
 # --- 4. 寫入邏輯 (透過 API，僅在需要時連線) ---
-@st.cache_resource(ttl=60)
+
 def get_sh():
     # 1. 組裝金鑰內容
     pk_parts = [
