@@ -1,14 +1,15 @@
 import streamlit as st
 import pandas as pd
 import gspread
+from datetime import datetime
 
+# 直接從 GitHub 根目錄讀取 credentials.json
 def get_gc():
-    # 直接傳入 st.secrets，它本身就是字典
-    return gspread.service_account_from_dict(dict(st.secrets))
+    return gspread.service_account(filename="credentials.json")
 
 SPREADSHEET_ID = "1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8"
 
-@st.cache_data(ttl=0) # 強制關閉快取，避免錯誤殘留
+@st.cache_data(ttl=0)
 def get_data():
     gc = get_gc()
     sh = gc.open_by_key(SPREADSHEET_ID)
@@ -18,7 +19,6 @@ def get_data():
     df_set = pd.DataFrame(settings_data)
     return inv, log, df_set
 
-# 初始化資料
 df_inv, df_log, df_set = get_data()
 
 st.set_page_config(page_title="CNC", layout="wide")
