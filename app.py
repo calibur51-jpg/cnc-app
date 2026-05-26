@@ -123,29 +123,38 @@ with t1:
     r = st.selectbox("原因", ["正常磨損", "斷刀", "架機", "其他"], key="t1_reason")
     wo = st.text_input("工單", key="t1_wo").strip()
     
-    # --- 5. 確認領用 (含除錯功能) ---
+    # --- 5. 確認領用 (強制除錯版) ---
     if st.button("確認領用", type="primary", use_container_width=True):
+        st.write("DEBUG: 按鈕已被按下！") # 1. 看看這行會不會出現
+        
         if qty > cur_stock:
             st.error("❌ 庫存不足！")
         else:
-            payload = {
-                "action": "領用", "row": idx + 2, "t_sel": t_sel,
-                "qty": qty, "u": u, "m": m, "r": r, "wo": wo
-            }
-            try:
-                # 這裡確保使用全域的 WEBHOOK_URL
-                response = requests.post(WEBHOOK_URL, json=payload)
+            # 2. 加入轉圈圈特效，確認程式有進到這裡
+            with st.spinner("正在連線至 Google Sheets，請稍候..."):
+                payload = {
+                    "action": "領用", "row": idx + 2, "t_sel": t_sel,
+                    "qty": qty, "u": u, "m": m, "r": r, "wo": wo
+                }
                 
-                if response.status_code == 200:
-                    st.session_state.data[0].loc[idx, "目前庫存"] -= qty
-                    st.success(f"✅ 已領刀：{t_name} x {qty}")
-                    st.session_state["q_val"] = 1
-                    import time; time.sleep(1); st.rerun()
+                # 3. 確保 WEBHOOK_URL 有值
+                if 'WEBHOOK_URL' not in locals() and 'WEBHOOK_URL' not in globals():
+                    st.error("❌ 系統設定錯誤：找不到 WEBHOOK_URL！請檢查程式最上方是否有定義它。")
                 else:
-                    st.error(f"❌ 寫入失敗 (狀態碼: {response.status_code})")
-                    st.text(f"錯誤訊息: {response.text}") # 顯示 Google 回傳的錯誤
-            except Exception as e:
-                st.error(f"❌ 連線失敗: {str(e)}")
+                    st.write(f"DEBUG: 正在發送請求至 {WEBHOOK_URL}") # 看看網址對不對
+                    
+                    try:
+                        response = requests.post(WEBHOOK_URL, json=payload, timeout=10) # 加上 timeout 防止卡死
+                        
+                        if response.status_code == 200:
+                            st.session_state.data[0].loc[idx, "目前庫存"] -= qty
+                            st.success(f"✅ 已領刀：{t_name} x {qty}")
+                            import time; time.sleep(1); st.rerun()
+                        else:
+                            st.error(f"❌ 寫入失敗 (狀態碼: {response.status_code})")
+                            st.text(f"內容: {response.text}")
+                    except Exception as e:
+                        st.error(f"❌ 連線失敗 (可能是網址錯誤或防火牆): {str(e)}")
 with t2:
     st.header("🔒 管理員專區")
     pw = st.text_input("輸入管理員密碼", type="password", key="pw_t2")
