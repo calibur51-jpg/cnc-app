@@ -6,8 +6,13 @@ CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTo2vi_36qF4mzPkxzNOJ
 
 @st.cache_data(ttl=60)
 def get_data():
-    # 因為你是整份檔案匯出，我們一次把資料讀進來
     full_data = pd.read_csv(CSV_URL)
+    # 把所有欄位名稱印出來看
+    st.write("目前的欄位名稱有:", full_data.columns.tolist())
+    return full_data
+
+full_data = get_data()
+st.dataframe(full_data)
     
     # 這裡依照你原本的 Excel 架構進行分拆 (假設這些資料能透過某些欄位辨識)
     # 如果你的 CSV 包含了所有分頁，你可以這樣篩選：
