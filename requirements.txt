@@ -2,4 +2,4 @@ streamlit
 gspread
 pandas
 openpyxl
-pip install streamlit-qr-code-scanner
+streamlit-qr-code-scanner
