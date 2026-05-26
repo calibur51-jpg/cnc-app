@@ -57,24 +57,23 @@ with t1:
     
     # --- 1. 直接開啟相機掃描區 ---
     with st.expander("📷 掃描 QR Code"):
-        # st.camera_input 會直接開啟相機，手機端通常會有「切換鏡頭」的按鈕
-        img_file = st.camera_input("直接拍攝刀具 QR Code")
+    img_file = st.camera_input("直接拍攝刀具 QR Code")
+    
+    # 關鍵在這裡：一定要檢查 img_file 是否有值，才能進行下一步
+    if img_file is not None:
+        img = Image.open(img_file) # 這樣寫就不會因為還沒拍照而崩潰
+        img_array = np.array(img)
+        detector = cv2.QRCodeDetector()
+        data, _, _ = detector.detectAndDecode(img_array)
         
-        if img_file:
-            img = Image.open(img_file)
-            img_array = np.array(img)
-            detector = cv2.QRCodeDetector()
-            # 解碼
-            data, _, _ = detector.detectAndDecode(img_array)
-            if data:
-                st.session_state.scanned_id = data
-                st.success(f"✅ 識別成功！編號: {data}")
-                # 這裡加一個重新整理觸發，讓頁面快速反應
-                import time
-                time.sleep(1)
-                st.rerun() 
-            else:
-                st.warning("⚠️ 無法識別，請對準 QR Code 並保持穩定")
+        if data:
+            st.session_state.scanned_id = data
+            st.success(f"✅ 識別成功！編號: {data}")
+            import time
+            time.sleep(1)
+            st.rerun() 
+        else:
+            st.warning("⚠️ 無法識別，請對準 QR Code")
 
     # --- 2. 篩選與選擇邏輯 ---
     default_idx = 0
