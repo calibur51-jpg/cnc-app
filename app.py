@@ -16,8 +16,6 @@ def get_data():
 # 初始化資料
 df_inv, df_log, df_set = get_data()
 
-st.write("資料讀取成功！")
-st.dataframe(df_inv)
 
 st.set_page_config(page_title="CNC", layout="wide")
 st.title("明星精密刀具管理系統")
