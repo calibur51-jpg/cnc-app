@@ -3,6 +3,19 @@ import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
 
+def clean_pem_key(key_str):
+    """ 強制格式化 PEM 字串，解決 InvalidByte 錯誤 """
+    # 1. 移除前後多餘的空格
+    key = key_str.strip()
+    # 2. 處理 Windows 換行符號 (\r\n) 改為標準 Unix 換行 (\n)
+    key = key.replace('\r\n', '\n')
+    # 3. 確保中間沒有多餘的 \r
+    key = key.replace('\r', '')
+    # 4. 確保正確的 PEM 結尾 (有些情況下需要補上最後的換行)
+    if not key.endswith('\n'):
+        key += '\n'
+    return key
+    
 # --- 1. 設定區 ---
 INV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTo2vi_36qF4mzPkxzNOJPTip7y-TXJLBm745noRRa4v_L_qkJ0DhFkaJ7tvYLCYWdFV3wbXOtH--zJ/pub?gid=0&single=true&output=csv"
 LOG_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTo2vi_36qF4mzPkxzNOJPTip7y-TXJLBm745noRRa4v_L_qkJ0DhFkaJ7tvYLCYWdFV3wbXOtH--zJ/pub?gid=1320901506&single=true&output=csv"
@@ -11,15 +24,16 @@ SET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTo2vi_36qF4mzPkxzNOJ
 # --- 2. 函數區 ---
 @st.cache_resource
 def get_sh():
-    # 這裡直接把 secrets['gcp'] 當作一個字典使用
+    # 讀取 Secrets
     creds_dict = dict(st.secrets["gcp"])
     
-    # 建立認證物件
+    # 【關鍵】在這裡強制清洗私鑰
+    creds_dict["private_key"] = clean_pem_key(creds_dict["private_key"])
+    
     scopes = ["https://www.googleapis.com/auth/spreadsheets"]
     creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-    
-    # 回傳連線物件
     return gspread.authorize(creds).open_by_key("1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8")
+
 
 # 呼叫測試
 try:
