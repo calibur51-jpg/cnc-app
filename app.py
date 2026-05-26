@@ -58,10 +58,16 @@ FULL_JSON_DATA = {
 }
 
 # --- 3. 讀取邏輯 (快且穩) ---
-@st.cache_resource(ttl=60)
+@st.cache_resource(ttl=600)  # 建議將 ttl 改為 600 (10分鐘)，減少對 Google Sheet 的頻繁請求
 def get_data():
-    return pd.read_csv(INV_URL, encoding='utf-8-sig'), pd.read_csv(LOG_URL, encoding='utf-8-sig'), pd.read_csv(SET_URL, encoding='utf-8-sig')
-
+    try:
+        df_inv = pd.read_csv(INV_URL, encoding='utf-8-sig')
+        df_log = pd.read_csv(LOG_URL, encoding='utf-8-sig')
+        df_set = pd.read_csv(SET_URL, encoding='utf-8-sig')
+        return df_inv, df_log, df_set
+    except Exception as e:
+        st.error(f"資料讀取失敗，請檢查網址或權限: {e}")
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame() # 回傳空的 DataFrame 避免程式崩潰
 # --- 4. 寫入邏輯 (透過 API，僅在需要時連線) ---
 @st.cache_resource(ttl=60)
 def get_sh():
