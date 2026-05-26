@@ -1,5 +1,7 @@
 import streamlit as st
 import pandas as pd
+import io  # <--- 請務必檢查這一行有沒有補上
+import gspread # 如果還有用到也可以留著，沒用到可刪除
 
 # 這裡換成你那三個分頁的 CSV 下載連結
 INV_URL = "https://docs.google.com/spreadsheets/d/1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8/export?format=csv&gid=0"
