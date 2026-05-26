@@ -7,8 +7,21 @@ import time
 
 # --- 這是新的讀取方式 ---
 def get_gc():
-    # 這會去讀取你在 Streamlit Cloud 設定的 Secrets
-    creds_dict = json.loads(st.secrets["GCP_JSON"])
+    # 讀取 Secrets
+    raw_json = st.secrets["GCP_JSON"]
+    
+    # 檢查並移除潛在的干擾字元 (例如開頭結尾的引號)
+    clean_json = raw_json.strip()
+    if clean_json.startswith('"""'):
+        clean_json = clean_json[3:]
+    if clean_json.endswith('"""'):
+        clean_json = clean_json[:-3]
+    
+    # 再次清洗一次以確保乾淨
+    clean_json = clean_json.strip()
+    
+    # 解析 JSON
+    creds_dict = json.loads(clean_json)
     return gspread.service_account_from_dict(creds_dict)
 
 SPREADSHEET_ID = "1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8"
