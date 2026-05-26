@@ -187,7 +187,7 @@ with t1:
                     else:
                         msg_area.error(f"❌ 寫入失敗 (伺服器回應: {response.status_code})")
                 except Exception as e:
-                    msg_area.error(f
+                   msg_area.error(f"❌ 寫入失敗 (伺服器回應: {response.status_code})")
 with t2:
     st.header("🔒 管理員專區")
     pw = st.text_input("輸入管理員密碼", type="password", key="pw_t2")
