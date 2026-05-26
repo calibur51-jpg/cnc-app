@@ -27,14 +27,14 @@ CRED_DICT = {
 # --- 核心邏輯 ---
 @st.cache_data(ttl=60)
 def get_data():
-    # 2. 對每個網址進行編碼處理
-    def safe_url(url):
-        # 將網址結構拆解再重新組合，確保特殊字元安全
-        parsed = urllib.parse.urlparse(url)
-        # 這一行是關鍵：將網址轉為安全的 ASCII 格式
-        return parsed.geturl()
-
-    return pd.read_csv(safe_url(INV_URL)), pd.read_csv(safe_url(LOG_URL)), pd.read_csv(safe_url(SET_URL))
+    sh = get_sh() # 使用我們剛剛定義好的 API 連線
+    
+    # 直接抓取分頁數據，這不會有任何網址編碼問題
+    inv_data = sh.worksheet("inventory").get_all_records()
+    log_data = sh.worksheet("logs").get_all_records()
+    set_data = sh.worksheet("Settings").get_all_records()
+    
+    return pd.DataFrame(inv_data), pd.DataFrame(log_data), pd.DataFrame(set_data)
 
 def get_sh():
     creds = Credentials.from_service_account_info(CRED_DICT, scopes=["https://www.googleapis.com/auth/spreadsheets"])
