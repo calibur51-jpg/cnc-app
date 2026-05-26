@@ -4,3 +4,4 @@ pandas
 openpyxl
 opencv-python-headless
 Pillow
+pyzbar
