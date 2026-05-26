@@ -59,19 +59,15 @@ with t1:
     # --- 載入資料 ---
     _, df_log, df_set = st.session_state.data
     
-# --- 1. 直接開啟相機掃描區 ---
+    # --- 1. 掃描區 (使用 pyzbar) ---
     with st.expander("📷 掃描 QR Code"):
         img_file = st.camera_input("直接拍攝刀具 QR Code")
         
         if img_file is not None:
-            # 直接讀取圖片，不需要轉灰階
             img = Image.open(img_file)
-            
-            # 使用 pyzbar 進行解碼
             decoded_objects = decode(img)
             
             if decoded_objects:
-                # 抓到第一個識別到的 QR Code
                 data = decoded_objects[0].data.decode('utf-8')
                 st.session_state.scanned_id = data
                 st.success(f"✅ 識別成功！編號: {data}")
@@ -79,18 +75,19 @@ with t1:
                 st.rerun() 
             else:
                 st.warning("⚠️ 無法識別，請確保 QR Code 對準鏡頭且無強烈反光")
-                
+
     # --- 2. 篩選與選擇邏輯 ---
-    # 設定預設分類
+    # 確保這行與 'with st.expander' 在同一個縮排層級
     cat_sel = "全部"
     
     # 處理掃描後的自動選取
     if "scanned_id" in st.session_state:
+        # 這裡請確認資料框變數名稱是否正確 (例如 df_inv)
         match = df_inv[df_inv["刀具編號"].astype(str) == st.session_state.scanned_id]
         if not match.empty:
             cat_sel = match.iloc[0]["分類"]
             target_name = match.iloc[0]["品名規格"]
-            del st.session_state.scanned_id # 處理完就刪除，避免重複觸發
+            del st.session_state.scanned_id 
         else:
             st.error("❌ 系統中找不到此編號的刀具")
 
@@ -151,7 +148,7 @@ with t1:
                         st.session_state.data[0].loc[idx, "目前庫存"] -= qty
                         st.success(f"✅ 已領刀：{t_name} x {qty}")
                         st.session_state["q_val"] = 1
-                        import time; time.sleep(1); st.rerun()
+                        time.sleep(1); st.rerun()
                     else:
                         st.error(f"❌ 寫入失敗 (伺服器回應: {response.status_code})")
                 except Exception as e:
