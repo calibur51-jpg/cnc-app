@@ -117,60 +117,61 @@ with t1:
                 except Exception as e:
                     st.error(f"連線失敗: {e}")
 with t2:
-    if st.text_input("密碼", type="password", key="pw2") == "1234":
-        # 💡 新增：後台總庫存瀏覽清單
-        with st.expander("📦 查看目前所有刀具庫存", expanded=False):
-            st.dataframe(df_inv, use_container_width=True)
+    st.header("📦 庫存總覽")
+    # 顯示所有庫存資料，方便課長組長快速檢閱
+    st.dataframe(df_inv, use_container_width=True)
+    
+    st.divider()
+    
+    st.header("⚙️ 系統管理")
+    mode = st.radio("選擇操作模式", ["刀具建檔", "庫存校正"], horizontal=True)
+    
+    if mode == "刀具建檔":
+        st.subheader("📝 新增刀具")
+        with st.form("new_tool_form"):
+            new_id = st.text_input("刀具編號")
+            new_name = st.text_input("品名規格")
+            new_cat = st.text_input("分類")
+            new_loc = st.text_input("儲位")
+            new_qty = st.number_input("初始庫存", min_value=0, value=0)
             
-        sub = st.radio("功能", ["叫貨", "進貨", "建檔", "校正"], horizontal=True)
-        
-        if sub == "叫貨":
-            # ... (原本的叫貨邏輯保持不變) ...
-            alert = df_inv[df_inv["目前庫存"].astype(int) <= df_inv["安全庫存"].astype(int)]
-            if alert.empty:
-                st.success("✅ 目前庫存水位安全！")
-            else:
-                st.markdown("### 🚨 待叫貨刀具")
-                st.dataframe(alert[["品名規格", "刀具編號", "目前庫存", "安全庫存"]], hide_index=True)
-                
-                txt = "【CNC 刀具補貨需求】\n"
-                for _, row in alert.iterrows():
-                    need = int(row['安全庫存']) * 2 - int(row['目前庫存'])
-                    need = max(need, 5)
-                    txt += f"{row['品名規格']} (編號:{row['刀具編號']}) 需求: {need} 支\n"
-                st.code(txt, language=None)
-                st.success("👆 上方內容已幫你整理好，直接複製即可貼到 LINE")
-        
-        elif sub == "進貨":
-            # ... (原本的進貨邏輯保持不變) ...
-            t_in = st.selectbox("刀具", df_inv["品名規格"].tolist())
-            q_in = st.number_input("數量", min_value=1, step=1)
-            if st.button("確認進貨"):
-                idx_in = df_inv[df_inv["品名規格"] == t_in].index[0]
-                get_sh().worksheet("inventory").update_cell(idx_in+2, df_inv.columns.get_loc("目前庫存")+1, int(df_inv.loc[idx_in, "目前庫存"]) + q_in)
-                get_sh().worksheet("logs").append_row([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "進貨", df_inv.loc[idx_in,"刀具編號"], q_in, "管理", "補貨", "進貨", "無"])
-                st.success("成功"); st.cache_data.clear(); st.rerun()
-                
-        elif sub == "建檔":
-            # ... (原本的建檔邏輯保持不變) ...
-            with st.form("f_new"):
-                c, nid, nname, nloc = st.selectbox("分類", ["銑刀","圓鼻刀","球刀","粉末鑽頭","黑鑽","絲功","銑牙刀"]), st.text_input("編號"), st.text_input("品名"), st.text_input("儲位")
-                nstock, nsafe = st.number_input("庫存", min_value=0), st.number_input("安全", min_value=0)
-                if st.form_submit_button("確認"):
-                    get_sh().worksheet("inventory").append_row([c, nid, nname, nloc, nstock, nsafe]); st.success("成功"); st.cache_data.clear(); st.rerun()
-                    
-        elif sub == "校正":
-            # ... (原本的校正邏輯保持不變) ...
-            e_name = st.selectbox("刀具", df_inv["品名規格"].tolist())
-            e_idx = df_inv[df_inv["品名規格"] == e_name].index[0]
-            with st.form("f_edit"):
-                ec, eid, enm, eloc = st.selectbox("分類", ["銑刀","圓鼻刀","球刀","粉末鑽頭","黑鑽","絲功","銑牙刀"], index=0), st.text_input("編號", df_inv.loc[e_idx, '刀具編號']), st.text_input("品名", df_inv.loc[e_idx, '品名規格']), st.text_input("儲位", df_inv.loc[e_idx, '儲位'])
-                estk, esaf = st.number_input("庫存", value=int(df_inv.loc[e_idx, '目前庫存'])), st.number_input("安全", value=int(df_inv.loc[e_idx, '安全庫存']))
-                if st.form_submit_button("儲存"):
-                    sh_r = get_sh()
-                    for i, val in enumerate([ec, eid, enm, eloc, estk, esaf], 1): sh_r.worksheet("inventory").update_cell(e_idx+2, i, val)
-                    st.success("成功"); st.cache_data.clear(); st.rerun()
+            if st.form_submit_button("確認建檔"):
+                payload = {
+                    "action": "建檔",
+                    "t_id": new_id,
+                    "t_name": new_name,
+                    "cat": new_cat,
+                    "loc": new_loc,
+                    "qty": new_qty
+                }
+                if post_data_to_sheet(payload):
+                    st.success("✅ 建檔成功！(請重新整理以更新清單)")
+                else:
+                    st.error("❌ 建檔失敗，請確認 Webhook 設定")
 
+    elif mode == "庫存校正":
+        st.subheader("🔧 庫存數量校正")
+        # 選擇要校正的刀具
+        target_tool = st.selectbox("選擇刀具", df_inv["品名規格"].tolist())
+        current_inv = df_inv[df_inv["品名規格"] == target_tool].iloc[0]
+        
+        st.write(f"目前庫存：{current_inv['目前庫存']} | 儲位：{current_inv['儲位']}")
+        new_adj_qty = st.number_input("輸入正確庫存總數", min_value=0, value=int(current_inv['目前庫存']))
+        
+        if st.button("確認校正"):
+            payload = {
+                "action": "校正",
+                "t_sel": current_inv['刀具編號'],
+                "new_qty": new_adj_qty
+            }
+            if post_data_to_sheet(payload):
+                st.success(f"✅ {target_tool} 已校正為 {new_adj_qty}")
+                # 樂觀更新記憶體中的顯示
+                idx = df_inv[df_inv["刀具編號"] == current_inv['刀具編號']].index[0]
+                st.session_state.data[0].loc[idx, "目前庫存"] = new_adj_qty
+                st.rerun()
+            else:
+                st.error("❌ 校正失敗")
 with t3:
     # --- 【關鍵修正】：確保 T3 區塊每次渲染時都讀取當下最新的 Session State ---
     _, df_log, _ = st.session_state.data
