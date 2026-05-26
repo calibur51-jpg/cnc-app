@@ -3,3 +3,4 @@ gspread
 pandas
 openpyxl
 opencv-python-headless
+Pillow
