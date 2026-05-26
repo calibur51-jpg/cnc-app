@@ -30,7 +30,7 @@ CRED_JSON_STR = """
 """
 
 def get_sh():
-    # 使用 json.loads 將字串轉回 dictionary，這會自動修正內部格式
+    # 這裡確保它是指向我們剛剛定義的 creds_dict 變數，而不是舊的 CRED_DICT
     creds_dict = json.loads(CRED_JSON_STR)
     creds = Credentials.from_service_account_info(creds_dict, scopes=["https://www.googleapis.com/auth/spreadsheets"])
     return gspread.authorize(creds).open_by_key("1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8")
