@@ -204,17 +204,16 @@ with t2:
     else:
         st.info("請輸入管理員密碼以存取管理功能")
 with t3:
-    # --- 讀取最新數據 ---
     _, df_log, _ = st.session_state.data
     
-    if st.text_input("密碼", type="password", key="pw3") == "1234":
-        st.header("📊 刀具管理戰情室")
-        
+    st.header("📊 刀具管理戰情室")
+    
+    if st.text_input("輸入密碼", type="password", key="pw3") == "1234":
         if not df_log.empty:
             df_log["數量"] = pd.to_numeric(df_log["數量"], errors='coerce').fillna(0)
             df_usage = df_log[df_log["動作"] == "領用"].copy()
             
-            # --- 1. 數據摘要 (Dashboard Metrics) ---
+            # --- 1. 戰情指標 ---
             c_m1, c_m2, c_m3 = st.columns(3)
             c_m1.metric("總領用次數", len(df_usage))
             c_m2.metric("總消耗數量", int(df_usage["數量"].sum()))
@@ -222,37 +221,39 @@ with t3:
             
             st.divider()
 
-            # --- 2. 圖表分析區 ---
-            if not df_usage.empty:
-                st.subheader("📈 分析報表")
-                col1, col2, col3 = st.columns(3)
-                with col1: 
-                    st.markdown("**機台消耗排行**")
-                    st.bar_chart(df_usage.groupby("備註")["數量"].sum())
-                with col2: 
-                    st.markdown("**人員領用統計**")
-                    st.bar_chart(df_usage.groupby("經辦人員")["數量"].sum())
-                with col3: 
-                    st.markdown("**原因分析統計**")
-                    st.bar_chart(df_usage.groupby("原因類型")["數量"].sum())
+            # --- 2. 視覺化分析 ---
+            st.subheader("📈 消耗趨勢與排行")
+            
+            # 排行榜放在最上面，因為最重要
+            st.markdown("**🔥 刀具領用排行 (Top 5)**")
+            # 假設 logs 裡面記錄的是"刀具編號"，我們用它來分組
+            top_tools = df_usage.groupby("刀具編號")["數量"].sum().sort_values(ascending=False).head(5)
+            st.bar_chart(top_tools)
+            
+            # 另外三個分析圖
+            col1, col2, col3 = st.columns(3)
+            with col1: 
+                st.markdown("**機台消耗**")
+                st.bar_chart(df_usage.groupby("備註")["數量"].sum())
+            with col2: 
+                st.markdown("**人員領用**")
+                st.bar_chart(df_usage.groupby("經辦人員")["數量"].sum())
+            with col3: 
+                st.markdown("**原因分析**")
+                st.bar_chart(df_usage.groupby("原因類型")["數量"].sum())
 
             st.divider()
             
-            # --- 3. 歷史紀錄進階篩選 ---
+            # --- 3. 歷史紀錄與篩選 ---
             st.header("📜 歷史紀錄進階篩選")
             col_a, col_b, col_c = st.columns(3)
             _, _, df_set = st.session_state.data 
             
-            all_reasons = ["正常磨損", "斷刀", "架機", "其他"]
-            sel_reasons = col_a.multiselect("篩選原因:", all_reasons)
-            all_staff = df_set["人員"].replace("", pd.NA).dropna().unique().tolist()
-            sel_staff = col_b.multiselect("篩選人員:", all_staff)
-            all_machines = df_set["機台"].replace("", pd.NA).dropna().tolist()
-            sel_machines = col_c.multiselect("篩選機台:", all_machines)
+            sel_reasons = col_a.multiselect("篩選原因:", ["正常磨損", "斷刀", "架機", "其他"])
+            sel_staff = col_b.multiselect("篩選人員:", df_set["人員"].replace("", pd.NA).dropna().unique().tolist())
+            sel_machines = col_c.multiselect("篩選機台:", df_set["機台"].replace("", pd.NA).dropna().tolist())
+            search_wo = st.text_input("🔍 搜尋工單號碼:")
             
-            search_wo = st.text_input("🔍 搜尋工單號碼 (選填):")
-            
-            # 綜合過濾邏輯
             df_filtered = df_log.copy()
             if sel_reasons: df_filtered = df_filtered[df_filtered["原因類型"].isin(sel_reasons)]
             if sel_staff: df_filtered = df_filtered[df_filtered["經辦人員"].isin(sel_staff)]
@@ -261,13 +262,16 @@ with t3:
             
             st.dataframe(df_filtered.sort_values(by="時間", ascending=False), use_container_width=True)
             
-            # 報表匯出
+            # --- 4. 下載 ---
             buf = io.BytesIO()
             with pd.ExcelWriter(buf) as w:
                 df_log.to_excel(w, sheet_name='紀錄', index=False)
                 df_inv.to_excel(w, sheet_name='庫存', index=False)
-            st.download_button("📥 下載完整報表 (Excel)", buf.getvalue(), "CNC_Report.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
+            st.download_button("📥 下載完整報表", buf.getvalue(), "CNC_Report.xlsx")
+        else:
+            st.info("目前沒有歷史紀錄數據。")
+    else:
+        st.info("請輸入密碼以查看數據分析。")
 with t4:
     st.header("📥 進貨與盤點系統")
     
