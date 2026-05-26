@@ -1,36 +1,29 @@
 import streamlit as st
+import pandas as pd
 import gspread
 import json
+from google.oauth2.service_account import Credentials
 
 def get_gc():
-    with open('credentials.json', 'r') as f:
-        creds_data = json.load(f)
-    from google.oauth2.service_account import Credentials
+    # 這是從 Secrets 直接載入，不會受換行符號影響
+    creds_dict = json.loads(st.secrets["GCP_JSON"])
     scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-    creds = Credentials.from_service_account_info(creds_data, scopes=scopes)
+    creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
     return gspread.authorize(creds)
 
 SPREADSHEET_ID = "1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8"
 
-# 診斷程式碼
-def diagnose():
-    try:
-        gc = get_gc()
-        st.write("✅ 憑證讀取成功，正在嘗試開啟試算表...")
-        
-        # 測試開啟檔案
-        sh = gc.open_by_key(SPREADSHEET_ID)
-        st.write(f"✅ 成功找到試算表: {sh.title}")
-        
-        # 測試讀取分頁
-        worksheet = sh.worksheet("inventory")
-        st.write("✅ 成功讀取 'inventory' 分頁")
-        
-    except Exception as e:
-        st.error(f"❌ 錯誤原因: {type(e).__name__}")
-        st.write(f"詳細訊息: {e}")
+@st.cache_data(ttl=0)
+def get_data():
+    gc = get_gc()
+    sh = gc.open_by_key(SPREADSHEET_ID)
+    inv = pd.DataFrame(sh.worksheet("inventory").get_all_records())
+    log = pd.DataFrame(sh.worksheet("logs").get_all_records())
+    settings_data = sh.worksheet("Settings").get_all_records()
+    df_set = pd.DataFrame(settings_data)
+    return inv, log, df_set
 
-diagnose()
+df_inv, df_log, df_set = get_data()
 
 st.set_page_config(page_title="CNC", layout="wide")
 st.title("明星精密刀具管理系統")
