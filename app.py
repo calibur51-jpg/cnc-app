@@ -118,29 +118,33 @@ with t1:
                     st.error(f"連線失敗: {e}")
 with t2:
     st.header("🔒 管理員專區")
+    
+    # 密碼保護
     pw = st.text_input("輸入管理員密碼", type="password", key="pw_t2")
     
-    if pw == "1234":  # 請維持你的密碼設定
-        st.success("✅ 驗證成功")
+    if pw == "1234":  # 可自行修改密碼
+        st.success("✅ 驗證成功，進入管理模式")
         
         st.divider()
-        st.header("📦 庫存總覽")
-        st.dataframe(df_inv, use_container_width=True)
+        
+        # 折疊式庫存總覽 (預設關閉)
+        with st.expander("📦 點擊查看所有刀具庫存總覽", expanded=False):
+            st.dataframe(df_inv, use_container_width=True)
         
         st.divider()
+        
         st.header("⚙️ 系統管理")
         mode = st.radio("選擇操作模式", ["刀具建檔", "庫存校正"], horizontal=True)
         
+        # --- 刀具建檔功能 ---
         if mode == "刀具建檔":
             st.subheader("📝 新增刀具")
-            
-            # --- 下拉選單設定 ---
             category_options = ["銑刀", "鑽頭", "絲攻", "捨棄式刀片", "其他"]
             
-            with st.form("new_tool_form"):
+            with st.form("new_tool_form", clear_on_submit=True):
                 new_id = st.text_input("刀具編號")
                 new_name = st.text_input("品名規格")
-                new_cat = st.selectbox("分類", options=category_options) # 改為下拉選單
+                new_cat = st.selectbox("分類", options=category_options)
                 new_loc = st.text_input("儲位")
                 new_qty = st.number_input("初始庫存", min_value=0, value=0)
                 
@@ -149,21 +153,23 @@ with t2:
                         "action": "建檔",
                         "t_id": new_id,
                         "t_name": new_name,
-                        "cat": new_cat, # 下拉選單的值會自動傳入這裡
+                        "cat": new_cat,
                         "loc": new_loc,
                         "qty": new_qty
                     }
                     if post_data_to_sheet(payload):
-                        st.success("✅ 建檔成功！")
+                        st.toast("✅ 刀具建檔成功！系統已同步", icon="🎉")
                         st.rerun()
                     else:
                         st.error("❌ 建檔失敗")
 
+        # --- 庫存校正功能 ---
         elif mode == "庫存校正":
-            # (庫存校正的部分保持不變)
             st.subheader("🔧 庫存數量校正")
+            # 選擇要校正的刀具
             target_tool = st.selectbox("選擇刀具", df_inv["品名規格"].tolist())
             current_inv = df_inv[df_inv["品名規格"] == target_tool].iloc[0]
+            
             st.write(f"目前庫存：{current_inv['目前庫存']} | 儲位：{current_inv['儲位']}")
             new_adj_qty = st.number_input("輸入正確庫存總數", min_value=0, value=int(current_inv['目前庫存']))
             
@@ -174,13 +180,18 @@ with t2:
                     "new_qty": new_adj_qty
                 }
                 if post_data_to_sheet(payload):
-                    st.success(f"✅ {target_tool} 已校正為 {new_adj_qty}")
+                    st.toast(f"✅ {target_tool} 已校正為 {new_adj_qty}", icon="🔧")
+                    # 樂觀更新記憶體
+                    idx = df_inv[df_inv["刀具編號"] == current_inv['刀具編號']].index[0]
+                    st.session_state.data[0].loc[idx, "目前庫存"] = new_adj_qty
                     st.rerun()
                 else:
                     st.error("❌ 校正失敗")
                     
     elif pw != "":
-        st.warning("⚠️ 密碼錯誤")
+        st.warning("⚠️ 密碼錯誤，請重新輸入")
+    else:
+        st.info("請輸入管理員密碼以存取管理功能")
 with t3:
     # --- 【關鍵修正】：確保 T3 區塊每次渲染時都讀取當下最新的 Session State ---
     _, df_log, _ = st.session_state.data
