@@ -1,5 +1,5 @@
 import streamlit as st
-import pandas as pd
+import json
 import gspread
 import io
 
@@ -11,9 +11,9 @@ SET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTo2vi_36qF4mzPkxzNOJ
 # --- 2. 函數區 ---
 @st.cache_resource
 def get_sh():
-    # 這行是最後的手段，只要 key.json 檔案存在就一定會過
-    return gspread.service_account(filename='key.json').open_by_key("1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8")
-
+    # 直接從 Streamlit 的 Secrets 讀取，這完全不會被 GitHub 掃描到
+    creds_dict = json.loads(st.secrets["GCP_JSON"])
+    return gspread.service_account_from_dict(creds_dict).open_by_key("1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8")
 def get_data():
     try:
         df_inv = pd.read_csv(INV_URL, encoding='utf-8-sig')
