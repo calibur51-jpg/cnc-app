@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import gspread
+import io
 
 # --- 1. 設定區 ---
 INV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTo2vi_36qF4mzPkxzNOJPTip7y-TXJLBm745noRRa4v_L_qkJ0DhFkaJ7tvYLCYWdFV3wbXOtH--zJ/pub?gid=0&single=true&output=csv"
