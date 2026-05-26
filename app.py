@@ -6,6 +6,7 @@ import io
 from PIL import Image
 import numpy as np    # 處理影像陣列必須
 import cv2            # QR Code 偵測必須
+from pyzbar.pyzbar import decode
 
 # --- 1. 設定區 ---
 # 這些 CSV 連結是讀取即時資料最穩定、不用安裝額外套件的方式
@@ -59,25 +60,25 @@ with t1:
     _, df_log, df_set = st.session_state.data
     
 # --- 1. 直接開啟相機掃描區 ---
-    with st.expander("📷 掃描 QR Code"):
+with st.expander("📷 掃描 QR Code"):
         img_file = st.camera_input("直接拍攝刀具 QR Code")
         
-        # 這裡的 if 判斷式是關鍵！
         if img_file is not None:
-            # 只有在拍完照、img_file 有內容時，這行才會執行
+            # 直接讀取圖片，不需要轉灰階
             img = Image.open(img_file)
-            img_array = np.array(img)
-            detector = cv2.QRCodeDetector()
-            data, _, _ = detector.detectAndDecode(img_array)
             
-            if data:
+            # 使用 pyzbar 進行解碼
+            decoded_objects = decode(img)
+            
+            if decoded_objects:
+                # 抓到第一個識別到的 QR Code
+                data = decoded_objects[0].data.decode('utf-8')
                 st.session_state.scanned_id = data
                 st.success(f"✅ 識別成功！編號: {data}")
-                import time
                 time.sleep(1)
                 st.rerun() 
             else:
-                st.warning("⚠️ 無法識別，請對準 QR Code 並保持穩定")
+                st.warning("⚠️ 無法識別，請確保 QR Code 對準鏡頭且無強烈反光")
                 
     # --- 2. 篩選與選擇邏輯 ---
     # 設定預設分類
