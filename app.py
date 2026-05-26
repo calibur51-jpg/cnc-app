@@ -33,19 +33,16 @@ def get_data():
 
 # --- 4. 寫入邏輯 (透過 API，僅在需要時連線) ---
 def get_sh():
-    # 直接讀取 Secrets 字串
-    raw_json = st.secrets["GCP_CREDENTIALS"]
+    creds_dict = json.loads(st.secrets["GCP_CREDENTIALS"])
     
-    # 將 JSON 轉為 dictionary
-    creds_dict = json.loads(raw_json)
+    # 關鍵修正：確保 private_key 不會被過度轉譯
+    # 如果私鑰格式依然報錯，這行能確保它正確轉換
+    creds_dict["private_key"] = creds_dict["private_key"].replace('\\n', '\n')
     
-    # 認證
     creds = Credentials.from_service_account_info(
         creds_dict, 
         scopes=["https://www.googleapis.com/auth/spreadsheets"]
     )
-    
-    # 返回連線物件
     return gspread.authorize(creds).open_by_key("1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8")
 # --- 5. 介面 ---
 st.title("明星精密刀具管理系統")
