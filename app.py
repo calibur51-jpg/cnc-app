@@ -80,36 +80,23 @@ with t1:
         r = st.selectbox("原因", ["正常磨損", "斷刀", "架機", "其他"])
         wo = st.text_input("工單").strip()
 
-        if st.button("確認領用", type="primary", use_container_width=True):
+if st.button("確認領用", type="primary", use_container_width=True):
             if qty > cur_stock:
                 st.error("❌ 庫存不足！")
             else:
-                # 準備要傳送的資料
-                payload = {
-                    "action": "領用",
-                    "row": idx + 2,  # 告訴 Script 要更新第幾行
-                    "qty": qty,
-                    "t_sel": t_sel,
-                    "u": u,
-                    "m": m,
-                    "r": r,
-                    "wo": wo
-                }
-                try:
-                    # 使用 requests 發送 POST
-                    response = requests.post(WEBHOOK_URL, json=payload)
-                    if response.status_code == 200:
-                        st.success(f"✅ 已領刀：{t_name} x {qty}")
-                        st.session_state["q_val"] = 1
-                        st.cache_data.clear()
-                        import time
-                        time.sleep(1)
-                        st.rerun()
-                    else:
-                        st.error("寫入失敗，請檢查網路")
-                except Exception as e:
-                    st.error(f"連線錯誤: {e}")
-
+                if post_data_to_sheet(item, qty):
+                    # 【核心更新】：寫入成功後，手動修改快取中的資料，不依賴 CSV 重新讀取
+                    idx = df_inv[df_inv["品名規格"] == item].index[0]
+                    df_inv.loc[idx, "目前庫存"] = cur_stock - qty
+                    st.session_state.data = (df_inv, df_log, df_set)
+                    
+                    st.success("✅ 領用成功！(庫存已即時更新)")
+                    st.session_state["q_val"] = 1
+                    import time
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.error("寫入失敗")
 with t2:
     if st.text_input("密碼", type="password", key="pw2") == "1234":
         # 💡 新增：後台總庫存瀏覽清單
