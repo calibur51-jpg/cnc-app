@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import requests
 import time
+import io
 
 # --- 1. 設定區 ---
 # 這些 CSV 連結是讀取即時資料最穩定、不用安裝額外套件的方式
@@ -171,10 +172,14 @@ with t2:
                     st.success("成功"); st.cache_data.clear(); st.rerun()
 
 with t3:
+    # --- 【關鍵修正】：確保 T3 區塊每次渲染時都讀取當下最新的 Session State ---
+    _, df_log, _ = st.session_state.data
+    
     if st.text_input("密碼", type="password", key="pw3") == "1234":
         st.header("📊 消耗分析與報表")
         
         if not df_log.empty:
+            # 確保欄位名稱正確 (這裡將數量強制轉數值)
             df_log["數量"] = pd.to_numeric(df_log["數量"], errors='coerce').fillna(0)
             df_usage = df_log[df_log["動作"] == "領用"].copy()
             
@@ -182,11 +187,14 @@ with t3:
             if not df_usage.empty:
                 c1, c2, c3 = st.columns(3)
                 with c1: 
-                    st.markdown("**機台消耗排行**"); st.bar_chart(df_usage.groupby("備註")["數量"].sum())
+                    st.markdown("**機台消耗排行**")
+                    st.bar_chart(df_usage.groupby("備註")["數量"].sum())
                 with c2: 
-                    st.markdown("**人員領用統計**"); st.bar_chart(df_usage.groupby("經辦人員")["數量"].sum())
+                    st.markdown("**人員領用統計**")
+                    st.bar_chart(df_usage.groupby("經辦人員")["數量"].sum())
                 with c3: 
-                    st.markdown("**原因分析統計**"); st.bar_chart(df_usage.groupby("原因類型")["數量"].sum())
+                    st.markdown("**原因分析統計**")
+                    st.bar_chart(df_usage.groupby("原因類型")["數量"].sum())
 
             st.markdown("---")
             st.header("📜 歷史紀錄進階篩選")
@@ -194,25 +202,23 @@ with t3:
             # --- 進階篩選區 ---
             col_a, col_b, col_c = st.columns(3)
             
-            # 1. 原因篩選
+            # 這裡重新讀取一次設定資料以確保下拉選單是最新的
+            _, _, df_set = st.session_state.data 
+            
             all_reasons = ["正常磨損", "斷刀", "架機", "其他"]
             sel_reasons = col_a.multiselect("篩選原因:", all_reasons, default=[])
             
-            # 2. 人員篩選
             all_staff = df_set["人員"].replace("", pd.NA).dropna().unique().tolist()
             sel_staff = col_b.multiselect("篩選人員:", all_staff, default=[])
             
-            # 3. 機台篩選
             all_machines = df_set["機台"].replace("", pd.NA).dropna().tolist()
             sel_machines = col_c.multiselect("篩選機台:", all_machines, default=[])
             
-            # 工單搜尋框
             search_wo = st.text_input("🔍 搜尋工單號碼 (選填):")
             
             # --- 綜合過濾邏輯 ---
             df_filtered = df_log.copy()
             
-            # 多條件篩選
             if sel_reasons:
                 df_filtered = df_filtered[df_filtered["原因類型"].astype(str).isin([str(s) for s in sel_reasons])]
             if sel_staff:
@@ -220,12 +226,9 @@ with t3:
             if sel_machines:
                 df_filtered = df_filtered[df_filtered["備註"].astype(str).isin([str(s) for s in sel_machines])]
             
-            # 工單搜尋 (關鍵：確保欄位存在且只有輸入時才過濾)
             if search_wo and search_wo.strip() != "":
                 if "工單號碼" in df_filtered.columns:
                     df_filtered = df_filtered[df_filtered["工單號碼"].astype(str).str.contains(search_wo.strip(), case=False, na=False)]
-                else:
-                    st.error("系統未找到 '工單號碼' 欄位，請檢查 Google Sheet 表頭是否正確。")
             
             st.dataframe(df_filtered, use_container_width=True)
             
