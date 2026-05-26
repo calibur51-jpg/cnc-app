@@ -63,7 +63,8 @@ with t1:
     with st.expander("📷 掃描 QR Code"):
         img_file = st.camera_input("直接拍攝刀具 QR Code")
         
-        if img_file is not None:
+        # 這裡的狀態檢查非常重要，確保只處理一次
+        if img_file is not None and "scanned_id" not in st.session_state:
             img = Image.open(img_file)
             decoded_objects = decode(img)
             
@@ -71,10 +72,9 @@ with t1:
                 data = decoded_objects[0].data.decode('utf-8')
                 st.session_state.scanned_id = data
                 st.success(f"✅ 識別成功！編號: {data}")
-                time.sleep(1)
-                st.rerun() 
+                # 這裡刪除 st.rerun()，讓網頁自然更新即可
             else:
-                st.warning("⚠️ 無法識別，請確保 QR Code 對準鏡頭且無強烈反光")
+                st.warning("⚠️ 無法識別，請確保 QR Code 對準鏡頭")
 
     # --- 2. 篩選與選擇邏輯 ---
     # 確保這行與 'with st.expander' 在同一個縮排層級
