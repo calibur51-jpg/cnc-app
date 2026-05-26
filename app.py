@@ -209,9 +209,17 @@ with t3:
     
     if st.text_input("輸入密碼", type="password", key="pw3") == "1234":
         if not df_log.empty:
-            # 確保數量與單價是數字格式
+            # 確保數量是數字格式
             df_log["數量"] = pd.to_numeric(df_log["數量"], errors='coerce').fillna(0)
-            df_log["單價"] = pd.to_numeric(df_log.get("單價", 0), errors='coerce').fillna(0)
+            
+            # --- 💡 安全修正：檢查歷史紀錄有沒有「單價」欄位，沒有就去對照庫存表的單價 ---
+            if "單價" in df_log.columns:
+                df_log["單價"] = pd.to_numeric(df_log["單價"], errors='coerce').fillna(0)
+            else:
+                # 如果歷史紀錄沒單價，就用「刀具編號」去對應庫存表 (df_inv) 的單價補進來
+                price_map = df_inv.set_index("刀具編號")["單價"].to_dict()
+                df_log["單價"] = df_log["刀具編號"].map(price_map).fillna(0)
+                df_log["單價"] = pd.to_numeric(df_log["單價"], errors='coerce').fillna(0)
             
             # --- 1. 原本的戰情指標與圖表 ---
             df_usage = df_log[df_log["動作"] == "領用"].copy()
@@ -262,7 +270,7 @@ with t3:
             
             st.divider()
 
-            # --- 3. 💡 移動到最下面：本月財務與進銷存對帳區 ---
+            # --- 3. 移動到最下面：本月財務與進銷存對帳區 ---
             df_log["時間"] = pd.to_datetime(df_log["時間"], errors='coerce')
             current_month = pd.Timestamp.now().strftime("%Y-%m")
             df_this_month = df_log[df_log["時間"].dt.strftime("%Y-%m") == current_month].copy()
@@ -291,7 +299,7 @@ with t3:
                 # 財務看板
                 c_f1, c_f2 = st.columns(2)
                 c_f1.metric("本月買刀總金額", f"${int(df_m_report['本月進貨總金額'].sum()):,}")
-                c_f2.metric("本月用刀總金額 (消耗成本)", f"${int(df_m_report['本月用刀總金額'].sum()):,}")
+                c_f2.metric("本月用刀總金額 (消耗成本)", f"${int(df_m_report['本刀總金額'].sum()):,}")
                 
                 # 顯示報表
                 st.dataframe(df_m_report, use_container_width=True)
