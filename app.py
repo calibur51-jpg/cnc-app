@@ -3,10 +3,6 @@ import pandas as pd
 import gspread
 from google.oauth2 import service_account
 
-creds = service_account.Credentials.from_service_account_info(creds_dict)
-client = gspread.authorize(creds)
-sh = client.open_by_key("1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8")
-
 # --- 1. 設定區 ---
 INV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTo2vi_36qF4mzPkxzNOJPTip7y-TXJLBm745noRRa4v_L_qkJ0DhFkaJ7tvYLCYWdFV3wbXOtH--zJ/pub?gid=0&single=true&output=csv"
 LOG_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTo2vi_36qF4mzPkxzNOJPTip7y-TXJLBm745noRRa4v_L_qkJ0DhFkaJ7tvYLCYWdFV3wbXOtH--zJ/pub?gid=1320901506&single=true&output=csv"
@@ -41,7 +37,12 @@ creds_dict = {
     "universe_domain": "googleapis.com"
 }
 
+# 建立憑證
+creds = service_account.Credentials.from_service_account_info(creds_dict)
 
+# 授權 gspread
+client = gspread.authorize(creds)
+sh = client.open_by_key("1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8")
     
 
 # --- 3. 介面 ---
