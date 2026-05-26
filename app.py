@@ -135,3 +135,191 @@ with t1:
                     msg_area.error(f"❌ 寫入失敗: {e}")
 
 # (其他 T2, T3, T4 區塊保持不變...)
+with t2:
+    st.header("🔒 管理員專區")
+    pw = st.text_input("輸入管理員密碼", type="password", key="pw_t2")
+    
+    if pw == "1234":
+        st.success("✅ 驗證成功，進入管理模式")
+        st.divider()
+        with st.expander("📦 點擊查看所有刀具庫存總覽", expanded=False):
+            categories = ["全部"] + df_inv["分類"].dropna().unique().tolist()
+            c1, c2 = st.columns(2)
+            with c1:
+                sel_cat = st.selectbox("分類篩選", options=categories)
+            with c2:
+                search_text = st.text_input("搜尋關鍵字 (編號/名稱)")
+            df_show = df_inv.copy()
+            if sel_cat != "全部":
+                df_show = df_show[df_show["分類"] == sel_cat]
+            if search_text:
+                mask = df_show["刀具編號"].astype(str).str.contains(search_text, case=False, na=False) | \
+                       df_show["品名規格"].astype(str).str.contains(search_text, case=False, na=False)
+                df_show = df_show[mask]
+            st.dataframe(df_show, use_container_width=True)
+        st.divider()
+        st.header("⚙️ 系統管理")
+        mode = st.radio("選擇操作模式", ["刀具建檔", "庫存校正"], horizontal=True)
+        if mode == "刀具建檔":
+            st.subheader("📝 新增刀具")
+            if st.session_state.get("last_action") == "建檔":
+                st.success("✅ 建檔成功！系統已同步。")
+                del st.session_state.last_action
+            category_options = ["銑刀", "鑽頭", "絲攻", "捨棄式刀片", "其他"]
+            with st.form("new_tool_form", clear_on_submit=True):
+                new_id = st.text_input("刀具編號")
+                new_name = st.text_input("品名規格")
+                new_cat = st.selectbox("分類", options=category_options)
+                new_loc = st.text_input("儲位")
+                new_qty = st.number_input("初始庫存", min_value=0, value=0)
+                if st.form_submit_button("確認建檔"):
+                    payload = {"action": "建檔", "t_id": new_id, "t_name": new_name, "cat": new_cat, "loc": new_loc, "qty": new_qty}
+                    if post_data_to_sheet(payload):
+                        st.session_state.last_action = "建檔"
+                        st.rerun()
+                    else:
+                        st.error("❌ 建檔失敗")
+        elif mode == "庫存校正":
+            st.subheader("🔧 庫存數量校正")
+            if st.session_state.get("last_action") == "校正":
+                st.success("✅ 庫存校正成功！")
+                del st.session_state.last_action
+            target_tool = st.selectbox("選擇刀具", df_inv["品名規格"].tolist())
+            current_inv = df_inv[df_inv["品名規格"] == target_tool].iloc[0]
+            st.write(f"目前庫存：{current_inv['目前庫存']} | 儲位：{current_inv['儲位']}")
+            new_adj_qty = st.number_input("輸入正確庫存總數", min_value=0, value=int(current_inv['目前庫存']))
+            if st.button("確認校正"):
+                payload = {"action": "校正", "t_sel": current_inv['刀具編號'], "new_qty": new_adj_qty}
+                if post_data_to_sheet(payload):
+                    st.session_state.last_action = "校正"
+                    idx = df_inv[df_inv["刀具編號"] == current_inv['刀具編號']].index[0]
+                    st.session_state.data[0].loc[idx, "目前庫存"] = new_adj_qty
+                    st.rerun()
+                else:
+                    st.error("❌ 校正失敗")
+    elif pw != "":
+        st.warning("⚠️ 密碼錯誤，請重新輸入")
+    else:
+        st.info("請輸入管理員密碼以存取管理功能")
+
+with t3:
+    _, df_log, _ = st.session_state.data
+    st.header("📊 刀具管理戰情室")
+    if st.text_input("輸入密碼", type="password", key="pw3") == "1234":
+        if not df_log.empty:
+            df_log["數量"] = pd.to_numeric(df_log["數量"], errors='coerce').fillna(0)
+            df_usage = df_log[df_log["動作"] == "領用"].copy()
+            c_m1, c_m2, c_m3 = st.columns(3)
+            c_m1.metric("總領用次數", len(df_usage))
+            c_m2.metric("總消耗數量", int(df_usage["數量"].sum()))
+            c_m3.metric("涵蓋機台數", df_usage["備註"].nunique())
+            st.divider()
+            st.subheader("📈 消耗趨勢與排行")
+            st.markdown("**🔥 刀具領用排行 (Top 5)**")
+            top_tools = df_usage.groupby("刀具編號")["數量"].sum().sort_values(ascending=False).head(5)
+            st.bar_chart(top_tools)
+            col1, col2, col3 = st.columns(3)
+            with col1: 
+                st.markdown("**機台消耗**")
+                st.bar_chart(df_usage.groupby("備註")["數量"].sum())
+            with col2: 
+                st.markdown("**人員領用**")
+                st.bar_chart(df_usage.groupby("經辦人員")["數量"].sum())
+            with col3: 
+                st.markdown("**原因分析**")
+                st.bar_chart(df_usage.groupby("原因類型")["數量"].sum())
+            st.divider()
+            st.header("📜 歷史紀錄進階篩選")
+            col_a, col_b, col_c = st.columns(3)
+            _, _, df_set = st.session_state.data 
+            sel_reasons = col_a.multiselect("篩選原因:", ["正常磨損", "斷刀", "架機", "其他"])
+            sel_staff = col_b.multiselect("篩選人員:", df_set["人員"].replace("", pd.NA).dropna().unique().tolist())
+            sel_machines = col_c.multiselect("篩選機台:", df_set["機台"].replace("", pd.NA).dropna().tolist())
+            search_wo = st.text_input("🔍 搜尋工單號碼:")
+            df_filtered = df_log.copy()
+            if sel_reasons: df_filtered = df_filtered[df_filtered["原因類型"].isin(sel_reasons)]
+            if sel_staff: df_filtered = df_filtered[df_filtered["經辦人員"].isin(sel_staff)]
+            if sel_machines: df_filtered = df_filtered[df_filtered["備註"].isin(sel_machines)]
+            if search_wo: df_filtered = df_filtered[df_filtered["工單號碼"].astype(str).str.contains(search_wo.strip(), case=False, na=False)]
+            st.dataframe(df_filtered.sort_values(by="時間", ascending=False), use_container_width=True)
+            buf = io.BytesIO()
+            with pd.ExcelWriter(buf) as w:
+                df_log.to_excel(w, sheet_name='紀錄', index=False)
+                df_inv.to_excel(w, sheet_name='庫存', index=False)
+            st.download_button("📥 下載完整報表", buf.getvalue(), "CNC_Report.xlsx")
+        else:
+            st.info("目前沒有歷史紀錄數據。")
+    else:
+        st.info("請輸入密碼以查看數據分析。")
+
+with t4:
+    st.header("📥 進貨與盤點系統")
+    pw = st.text_input("輸入管理員密碼", type="password", key="pw_t4")
+    if pw == "1234":
+        st.success("✅ 驗證成功")
+        st.divider()
+        low_stock_df = df_inv[df_inv["目前庫存"] <= df_inv["安全庫存"]]
+        if not low_stock_df.empty:
+            st.warning(f"🚨 注意：共有 {len(low_stock_df)} 項刀具低於安全庫存！")
+            with st.expander("📦 查看低庫存清單", expanded=True):
+                st.dataframe(low_stock_df[["品名規格", "目前庫存", "安全庫存", "儲位"]], use_container_width=True)
+        else:
+            st.success("✅ 所有庫存皆在安全水位以上，運作正常。")
+        st.divider()
+        st.subheader("⚙️ 選擇目標刀具")
+        categories = ["全部"] + df_inv["分類"].dropna().unique().tolist()
+        c1, c2 = st.columns(2)
+        with c1:
+            sel_cat = st.selectbox("篩選分類", options=categories, key="t4_cat")
+        with c2:
+            search_text = st.text_input("關鍵字搜尋", key="t4_search")
+        df_show = df_inv.copy()
+        if sel_cat != "全部":
+            df_show = df_show[df_show["分類"] == sel_cat]
+        if search_text:
+            mask = df_show["刀具編號"].astype(str).str.contains(search_text, case=False, na=False) | \
+                   df_show["品名規格"].astype(str).str.contains(search_text, case=False, na=False)
+            df_show = df_show[mask]
+        tool_options = df_show["品名規格"].tolist()
+        if not tool_options:
+            st.error("找不到符合條件的刀具")
+        else:
+            sel_tool_name = st.selectbox("搜尋結果", tool_options, key="t4_tool_sel")
+            tool_info = df_show[df_show["品名規格"] == sel_tool_name].iloc[0]
+            cur_qty = int(tool_info["目前庫存"])
+            safe_qty = int(tool_info["安全庫存"])
+            price = tool_info["單價"]
+            col_a, col_b, col_c = st.columns(3)
+            col_a.metric("目前庫存", cur_qty)
+            col_b.metric("安全水位", safe_qty)
+            col_c.metric("單價", f"${price}")
+            mode = st.radio("選擇操作模式", ["進貨", "盤點"], horizontal=True)
+            with st.form("t4_action_form", clear_on_submit=True):
+                qty_input = st.number_input("數量", min_value=0, value=0)
+                u_input = st.text_input("操作人員")
+                btn_text = "確認進貨 (累加)" if mode == "進貨" else "確認盤點 (覆寫)"
+                if st.form_submit_button(btn_text):
+                    payload = {
+                        "action": mode,
+                        "t_id": tool_info["刀具編號"],
+                        "qty": qty_input,
+                        "new_qty": qty_input,
+                        "u": u_input
+                    }
+                    if post_data_to_sheet(payload):
+                        idx = df_inv[df_inv["刀具編號"] == tool_info["刀具編號"]].index[0]
+                        if mode == "進貨":
+                            st.session_state.data[0].loc[idx, "目前庫存"] += qty_input
+                        else:
+                            st.session_state.data[0].loc[idx, "目前庫存"] = qty_input
+                        st.session_state.success_msg = f"✅ {btn_text}成功！"
+                        st.rerun()
+                    else:
+                        st.error("❌ 操作失敗")
+        if "success_msg" in st.session_state:
+            st.success(st.session_state.success_msg)
+            del st.session_state.success_msg
+    elif pw != "":
+        st.warning("⚠️ 密碼錯誤")
+    else:
+        st.info("請輸入管理員密碼以存取進貨與盤點功能")
