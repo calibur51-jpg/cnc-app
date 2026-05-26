@@ -204,20 +204,28 @@ with t2:
 
 with t3:
     _, df_log, _ = st.session_state.data
+    
     st.header("📊 刀具管理戰情室")
+    
     if st.text_input("輸入密碼", type="password", key="pw3") == "1234":
         if not df_log.empty:
+            # 確保數量與單價是數字格式
             df_log["數量"] = pd.to_numeric(df_log["數量"], errors='coerce').fillna(0)
+            df_log["單價"] = pd.to_numeric(df_log.get("單價", 0), errors='coerce').fillna(0)
+            
+            # --- 1. 原本的戰情指標與圖表 ---
             df_usage = df_log[df_log["動作"] == "領用"].copy()
             c_m1, c_m2, c_m3 = st.columns(3)
             c_m1.metric("總領用次數", len(df_usage))
             c_m2.metric("總消耗數量", int(df_usage["數量"].sum()))
             c_m3.metric("涵蓋機台數", df_usage["備註"].nunique())
+            
             st.divider()
-            st.subheader("📈 消耗趨勢與排行")
+            st.subheader("📈 歷史累積消耗分析")
             st.markdown("**🔥 刀具領用排行 (Top 5)**")
             top_tools = df_usage.groupby("刀具編號")["數量"].sum().sort_values(ascending=False).head(5)
             st.bar_chart(top_tools)
+            
             col1, col2, col3 = st.columns(3)
             with col1: 
                 st.markdown("**機台消耗**")
@@ -228,7 +236,10 @@ with t3:
             with col3: 
                 st.markdown("**原因分析**")
                 st.bar_chart(df_usage.groupby("原因類型")["數量"].sum())
+            
             st.divider()
+            
+            # --- 2. 原本的歷史紀錄進階篩選與下載 ---
             st.header("📜 歷史紀錄進階篩選")
             col_a, col_b, col_c = st.columns(3)
             _, _, df_set = st.session_state.data 
@@ -242,16 +253,61 @@ with t3:
             if sel_machines: df_filtered = df_filtered[df_filtered["備註"].isin(sel_machines)]
             if search_wo: df_filtered = df_filtered[df_filtered["工單號碼"].astype(str).str.contains(search_wo.strip(), case=False, na=False)]
             st.dataframe(df_filtered.sort_values(by="時間", ascending=False), use_container_width=True)
+            
             buf = io.BytesIO()
             with pd.ExcelWriter(buf) as w:
                 df_log.to_excel(w, sheet_name='紀錄', index=False)
                 df_inv.to_excel(w, sheet_name='庫存', index=False)
-            st.download_button("📥 下載完整報表", buf.getvalue(), "CNC_Report.xlsx")
+            st.download_button("📥 下載完整總歷史報表", buf.getvalue(), "CNC_Report.xlsx")
+            
+            st.divider()
+
+            # --- 3. 💡 移動到最下面：本月財務與進銷存對帳區 ---
+            df_log["時間"] = pd.to_datetime(df_log["時間"], errors='coerce')
+            current_month = pd.Timestamp.now().strftime("%Y-%m")
+            df_this_month = df_log[df_log["時間"].dt.strftime("%Y-%m") == current_month].copy()
+            
+            st.header(f"📅 本月 ({current_month}) 財務與進銷存對帳表")
+            
+            if not df_this_month.empty:
+                # 計算進貨與領用
+                df_in = df_this_month[df_this_month["動作"] == "進貨"].groupby(["刀具編號", "品名規格"])["數量"].sum().reset_index(name="本月進貨總數")
+                df_out = df_this_month[df_this_month["動作"] == "領用"].groupby(["刀具編號", "品名規格"])["數量"].sum().reset_index(name="本月領用總數")
+                
+                # 取得最新單價
+                df_prices = df_this_month.groupby(["刀具編號", "品名規格"])["單價"].max().reset_index(name="單價")
+                
+                # 合併大表
+                df_m_report = df_prices.merge(df_in, on=["刀具編號", "品名規格"], how="left").merge(df_out, on=["刀具編號", "品名規格"], how="left")
+                df_m_report["本月進貨總數"] = df_m_report["本月進貨總數"].fillna(0)
+                df_m_report["本月領用總數"] = df_m_report["本月領用總數"].fillna(0)
+                
+                # 計算總額
+                df_m_report["本月進貨總金額"] = df_m_report["本月進貨總數"] * df_m_report["單價"]
+                df_m_report["本月用刀總金額"] = df_m_report["本月領用總數"] * df_m_report["單價"]
+                
+                df_m_report = df_m_report[["刀具編號", "品名規格", "單價", "本月進貨總數", "本月進貨總金額", "本月領用總數", "本月用刀總金額"]]
+                
+                # 財務看板
+                c_f1, c_f2 = st.columns(2)
+                c_f1.metric("本月買刀總金額", f"${int(df_m_report['本月進貨總金額'].sum()):,}")
+                c_f2.metric("本月用刀總金額 (消耗成本)", f"${int(df_m_report['本月用刀總金額'].sum()):,}")
+                
+                # 顯示報表
+                st.dataframe(df_m_report, use_container_width=True)
+                
+                # 月度報表下載
+                buf_m = io.BytesIO()
+                with pd.ExcelWriter(buf_m) as w:
+                    df_m_report.to_excel(w, sheet_name='本月財務對帳', index=False)
+                st.download_button(f"📥 下載 {current_month} 財務對帳 Excel", buf_m.getvalue(), f"CNC_Monthly_Financial_Report_{current_month}.xlsx")
+            else:
+                st.info("本月目前尚無任何進貨或領用紀錄。")
+                
         else:
             st.info("目前沒有歷史紀錄數據。")
     else:
         st.info("請輸入密碼以查看數據分析。")
-
 with t4:
     st.header("📥 進貨與盤點系統")
     pw = st.text_input("輸入管理員密碼", type="password", key="pw_t4")
