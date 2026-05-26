@@ -12,9 +12,16 @@ SET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTo2vi_36qF4mzPkxzNOJ
 # --- 2. 函數區 ---
 @st.cache_resource
 def get_sh():
-    # 注意這裡變成了 st.secrets["gcp_service_account"]
-    creds_dict = dict(st.secrets["gcp_service_account"])
+    # 我們完全自己組裝字典，不使用 json.loads
+    creds_dict = {
+        "type": st.secrets["gcp_type"],
+        "project_id": st.secrets["gcp_project_id"],
+        "private_key_id": st.secrets["gcp_private_key_id"],
+        "private_key": st.secrets["gcp_private_key"],
+        "client_email": st.secrets["gcp_client_email"]
+    }
     return gspread.service_account_from_dict(creds_dict).open_by_key("1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8")
+    
 def get_data():
     try:
         df_inv = pd.read_csv(INV_URL, encoding='utf-8-sig')
