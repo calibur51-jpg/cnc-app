@@ -48,7 +48,7 @@ if st.button("🔄 立即同步最新庫存"):
 df_inv, df_log, df_set = st.session_state.data
 
 # 在此加入你原本的 TAB 與扣庫存邏輯 (呼叫 get_sh().worksheet(...).update_cell 時會自動運作)
-t1, t2, t3 = st.tabs(["領用", "後台", "紀錄"])
+t1, t2, t3, t4 = st.tabs(["領用", "後台", "紀錄", "進貨與盤點系統"])
 with t1:
     cats = ["全部"] + df_inv["分類"].unique().tolist()
     cat_sel = st.selectbox("分類", cats, key="c1")
@@ -270,3 +270,52 @@ with t3:
                 df_log.to_excel(w, sheet_name='紀錄', index=False)
                 df_inv.to_excel(w, sheet_name='庫存', index=False)
             st.download_button("📥 下載完整報表 (Excel)", buf.getvalue(), "CNC_Report.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+with t4:
+    st.header("📥 進貨與盤點系統")
+    
+    # 選擇刀具
+    tool_list = df_inv["品名規格"].tolist()
+    sel_tool_name = st.selectbox("選擇刀具", tool_list, key="t4_tool")
+    tool_info = df_inv[df_inv["品名規格"] == sel_tool_name].iloc[0]
+    
+    # 取得安全庫存與單價 (確保欄位名稱正確，若你的表格標題不同請微調)
+    cur_qty = int(tool_info["目前庫存"])
+    safe_qty = int(tool_info["安全庫存"])
+    price = tool_info["單價"]
+    
+    # --- 資訊顯示區 ---
+    c1, c2, c3 = st.columns(3)
+    c1.metric("目前庫存", cur_qty)
+    c2.metric("安全水位", safe_qty)
+    c3.metric("單價", f"${price}")
+    
+    if cur_qty <= safe_qty:
+        st.warning(f"⚠️ 庫存已低於安全水位 (<{safe_qty})，請準備進貨！")
+
+    # --- 操作區 ---
+    mode = st.radio("選擇操作模式", ["進貨", "盤點"], horizontal=True)
+    
+    with st.form("t4_form", clear_on_submit=True):
+        qty_input = st.number_input("數量", min_value=0, value=0)
+        u_input = st.text_input("操作人員")
+        
+        btn_text = "確認進貨" if mode == "進貨" else "確認盤點"
+        if st.form_submit_button(btn_text):
+            payload = {
+                "action": mode,
+                "t_id": tool_info["刀具編號"],
+                "qty": qty_input,   # 進貨用
+                "new_qty": qty_input, # 盤點用
+                "u": u_input
+            }
+            if post_data_to_sheet(payload):
+                st.session_state.success_msg = f"✅ {btn_text}成功！"
+                st.rerun()
+            else:
+                st.error("❌ 操作失敗")
+
+    # 顯示成功訊息
+    if "success_msg" in st.session_state:
+        st.success(st.session_state.success_msg)
+        del st.session_state.success_msg
