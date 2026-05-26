@@ -3,6 +3,7 @@ import pandas as pd
 import gspread
 import json
 from google.oauth2.service_account import Credentials
+import urllib.parse
 
 # --- 設定區 ---
 INV_URL = "https://docs.google.com/spreadsheets/d/1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8/export?format=csv&gid=0"
@@ -26,7 +27,14 @@ CRED_DICT = {
 # --- 核心邏輯 ---
 @st.cache_data(ttl=60)
 def get_data():
-    return pd.read_csv(INV_URL), pd.read_csv(LOG_URL), pd.read_csv(SET_URL)
+    # 2. 對每個網址進行編碼處理
+    def safe_url(url):
+        # 將網址結構拆解再重新組合，確保特殊字元安全
+        parsed = urllib.parse.urlparse(url)
+        # 這一行是關鍵：將網址轉為安全的 ASCII 格式
+        return parsed.geturl()
+
+    return pd.read_csv(safe_url(INV_URL)), pd.read_csv(safe_url(LOG_URL)), pd.read_csv(safe_url(SET_URL))
 
 def get_sh():
     creds = Credentials.from_service_account_info(CRED_DICT, scopes=["https://www.googleapis.com/auth/spreadsheets"])
