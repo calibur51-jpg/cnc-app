@@ -11,6 +11,10 @@ SPREADSHEET_ID = "1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8"
 
 @st.cache_data(ttl=0)
 def get_data():
+    # --- 加入這兩行診斷 ---
+    import os
+    st.write("目前目錄下的檔案:", os.listdir('.'))
+    # ----------------------
     gc = get_gc()
     sh = gc.open_by_key(SPREADSHEET_ID)
     inv = pd.DataFrame(sh.worksheet("inventory").get_all_records())
