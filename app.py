@@ -251,25 +251,42 @@ with t3:
             st.header("📜 歷史紀錄進階篩選")
             col_a, col_b, col_c = st.columns(3)
             _, _, df_set = st.session_state.data 
+            
             sel_reasons = col_a.multiselect("篩選原因:", ["正常磨損", "斷刀", "架機", "其他"])
             sel_staff = col_b.multiselect("篩選人員:", df_set["人員"].replace("", pd.NA).dropna().unique().tolist())
             sel_machines = col_c.multiselect("篩選機台:", df_set["機台"].replace("", pd.NA).dropna().tolist())
             search_wo = st.text_input("🔍 搜尋工單號碼:")
+            
+            # 建立篩選用的副本
             df_filtered = df_log.copy()
+            
+            # 💡 關鍵優化：在流水帳表格中，自動根據「刀具編號」補上「品名規格」欄位
+            name_map = df_inv.set_index("刀具編號")["品名規格"].to_dict()
+            df_filtered["品名規格"] = df_filtered["刀具編號"].map(name_map).fillna("未知刀具")
+            
+            # 調整一下欄位順序，把品名規格放到「刀具編號」後面，方便查看
+            all_cols = df_filtered.columns.tolist()
+            if "品名規格" in all_cols and "刀具編號" in all_cols:
+                all_cols.remove("品名規格")
+                idx_id = all_cols.index("刀具編號")
+                all_cols.insert(idx_id + 1, "品名規格") # 放至編號右邊
+                df_filtered = df_filtered[all_cols]
+
+            # 執行篩選邏輯
             if sel_reasons: df_filtered = df_filtered[df_filtered["原因類型"].isin(sel_reasons)]
             if sel_staff: df_filtered = df_filtered[df_filtered["經辦人員"].isin(sel_staff)]
             if sel_machines: df_filtered = df_filtered[df_filtered["備註"].isin(sel_machines)]
             if search_wo: df_filtered = df_filtered[df_filtered["工單號碼"].astype(str).str.contains(search_wo.strip(), case=False, na=False)]
+            
+            # 顯示表格
             st.dataframe(df_filtered.sort_values(by="時間", ascending=False), use_container_width=True)
             
+            # 匯出成含有品名規格的完整 Excel
             buf = io.BytesIO()
             with pd.ExcelWriter(buf) as w:
-                df_log.to_excel(w, sheet_name='紀錄', index=False)
-                df_inv.to_excel(w, sheet_name='庫存', index=False)
-            st.download_button("📥 下載完整總歷史報表", buf.getvalue(), "CNC_Report.xlsx")
-            
-            st.divider()
-
+                df_filtered.to_excel(w, sheet_name='紀錄(含規格)', index=False)
+                df_inv.to_excel(w, sheet_name='庫存總表', index=False)
+            st.download_button("📥 下載完整總歷史報表 (含品名規格)", buf.getvalue(), "CNC_Full_Report_With_Names.xlsx")
             # --- 3. 移動到最下面：本月財務與進銷存對帳區 ---
             df_log["時間"] = pd.to_datetime(df_log["時間"], errors='coerce')
             current_month = pd.Timestamp.now().strftime("%Y-%m")
