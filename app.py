@@ -134,7 +134,6 @@ with t1:
                 except Exception as e:
                     msg_area.error(f"❌ 寫入失敗: {e}")
 
-# (其他 T2, T3, T4 區塊保持不變...)
 with t2:
     st.header("🔒 管理員專區")
     pw = st.text_input("輸入管理員密碼", type="password", key="pw_t2")
@@ -160,12 +159,19 @@ with t2:
         st.divider()
         st.header("⚙️ 系統管理")
         mode = st.radio("選擇操作模式", ["刀具建檔", "庫存校正"], horizontal=True)
+        
+        # --- 1. 刀具建檔區塊 (自動讀取現有分類) ---
         if mode == "刀具建檔":
             st.subheader("📝 新增刀具")
             if st.session_state.get("last_action") == "建檔":
                 st.success("✅ 建檔成功！系統已同步。")
                 del st.session_state.last_action
-            category_options = ["銑刀", "鑽頭", "絲攻", "捨棄式刀片", "其他"]
+            
+            # 💡 自動抓取現有 Sheets 裡面的所有分類，並補上「其他」供新種類建檔
+            category_options = df_inv["分類"].dropna().unique().tolist()
+            if "其他" not in category_options:
+                category_options.append("其他")
+                
             with st.form("new_tool_form", clear_on_submit=True):
                 new_id = st.text_input("刀具編號")
                 new_name = st.text_input("品名規格")
@@ -179,10 +185,10 @@ with t2:
                         st.rerun()
                     else:
                         st.error("❌ 建檔失敗")
-# --- 3. 庫存校正區塊 (終極修復防退版) ---
+                        
+        # --- 2. 庫存校正區塊 (終極修復防退版) ---
         elif mode == "庫存校正":
             st.subheader("🔧 庫存數量校正")
-            # 顯示校正成功訊息
             if st.session_state.get("last_action") == "校正":
                 st.success("✅ 庫存校正成功！")
                 del st.session_state.last_action
@@ -190,26 +196,25 @@ with t2:
             target_tool = st.selectbox("選擇刀具", df_inv["品名規格"].tolist())
             current_inv = df_inv[df_inv["品名規格"] == target_tool].iloc[0]
             
-            # 💡 終極防呆：先強轉數字，用 astype(int) 確保型態，再用 max(0, ...) 鎖定最小值
+            # 💡 終極防呆：先強轉數字，用 astype(int) 確保型態，若為負數則用 max(0, ...) 轉為 0，防 Streamlit 閃退
             try:
-                # 這樣寫最安全，管它是字串、浮點數還是負數，都能完美轉成標準整數
-                raw_qty = int(pd.Series(current_inv['目前庫存']).to_numeric(errors='coerce').fillna(0).astype(int).iloc[0])
+                raw_qty = int(pd.Series(current_inv['currently_stock']).to_numeric(errors='coerce').fillna(0).astype(int).iloc[0])
             except:
-                # 萬一真的有鬼，直接給它 0，絕對不讓網頁崩潰
-                raw_qty = 0
+                try:
+                    raw_qty = int(pd.Series(current_inv['目前庫存']).to_numeric(errors='coerce').fillna(0).astype(int).iloc[0])
+                except:
+                    raw_qty = 0
                 
             default_qty = max(0, raw_qty) 
-            
             st.write(f"目前庫存：{raw_qty} | 儲位：{current_inv['儲位']}")
             
-            # 使用計算後的 default_qty，確保絕對不會低於 min_value=0
+            # 使用安全處理後的 default_qty，確保絕對不低於 min_value=0
             new_adj_qty = st.number_input("輸入正確庫存總數", min_value=0, value=default_qty)
             
             if st.button("確認校正"):
                 payload = {"action": "校正", "t_sel": current_inv['刀具編號'], "new_qty": new_adj_qty}
                 if post_data_to_sheet(payload):
                     st.session_state.last_action = "校正"
-                    # 樂觀更新記憶體
                     idx = df_inv[df_inv["刀具編號"] == current_inv['刀具編號']].index[0]
                     st.session_state.data[0].loc[idx, "目前庫存"] = new_adj_qty
                     st.rerun()
