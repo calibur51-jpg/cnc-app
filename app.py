@@ -1,33 +1,37 @@
 import streamlit as st
 import pandas as pd
 import requests
+import io
 
 # --- 1. 設定區 ---
+# 讀取用公開連結
 INV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTo2vi_36qF4mzPkxzNOJPTip7y-TXJLBm745noRRa4v_L_qkJ0DhFkaJ7tvYLCYWdFV3wbXOtH--zJ/pub?gid=0&single=true&output=csv"
 LOG_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTo2vi_36qF4mzPkxzNOJPTip7y-TXJLBm745noRRa4v_L_qkJ0DhFkaJ7tvYLCYWdFV3wbXOtH--zJ/pub?gid=1320901506&single=true&output=csv"
 SET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTo2vi_36qF4mzPkxzNOJPTip7y-TXJLBm745noRRa4v_L_qkJ0DhFkaJ7tvYLCYWdFV3wbXOtH--zJ/pub?gid=657176737&single=true&output=csv"
 
+# 寫入用 Webhook 連結
 WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyZ6-S7x4fp4iCQbdpClMlXQFUxQ9q036XFtCZxuObS2mqaF7wv-U26QOJhqGsvxHyskQ/exec"
 
 # --- 2. 函數區 ---
 @st.cache_data(ttl=60)
 def get_data():
     try:
-        # 一次讀取三個 CSV
         df_inv = pd.read_csv(INV_URL, encoding='utf-8-sig')
         df_log = pd.read_csv(LOG_URL, encoding='utf-8-sig')
         df_set = pd.read_csv(SET_URL, encoding='utf-8-sig')
         return df_inv, df_log, df_set
     except Exception as e:
-        st.error(f"讀取資料失敗: {e}")
+        st.error(f"讀取 CSV 失敗: {e}")
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
 def post_data_to_sheet(item_name, quantity):
     payload = {"item": item_name, "qty": quantity}
     try:
+        # 發送 POST 請求給 Apps Script
         response = requests.post(WEBHOOK_URL, json=payload)
         return response.status_code == 200
-    except:
+    except Exception as e:
+        st.error(f"連線失敗: {e}")
         return False
 # --- 3. 介面 ---
 st.title("明星精密刀具管理系統")
