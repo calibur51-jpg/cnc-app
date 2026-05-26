@@ -179,19 +179,31 @@ with t2:
                         st.rerun()
                     else:
                         st.error("❌ 建檔失敗")
+# --- 3. 庫存校正區塊 (已加入負數防呆) ---
         elif mode == "庫存校正":
             st.subheader("🔧 庫存數量校正")
+            # 顯示校正成功訊息 (顯示在區塊下方)
             if st.session_state.get("last_action") == "校正":
                 st.success("✅ 庫存校正成功！")
                 del st.session_state.last_action
+                
             target_tool = st.selectbox("選擇刀具", df_inv["品名規格"].tolist())
             current_inv = df_inv[df_inv["品名規格"] == target_tool].iloc[0]
-            st.write(f"目前庫存：{current_inv['目前庫存']} | 儲位：{current_inv['儲位']}")
-            new_adj_qty = st.number_input("輸入正確庫存總數", min_value=0, value=int(current_inv['目前庫存']))
+            
+            # 💡 關鍵改動：先轉成數字，如果小於 0 則強制過濾為 0，防止 Streamlit 閃退
+            raw_qty = int(pd.to_numeric(current_inv['目前庫存'], errors='coerce').fillna(0))
+            default_qty = max(0, raw_qty) 
+            
+            st.write(f"目前庫存：{raw_qty} | 儲位：{current_inv['儲位']}")
+            
+            # 💡 將 value 改用計算後的 default_qty
+            new_adj_qty = st.number_input("輸入正確庫存總數", min_value=0, value=default_qty)
+            
             if st.button("確認校正"):
                 payload = {"action": "校正", "t_sel": current_inv['刀具編號'], "new_qty": new_adj_qty}
                 if post_data_to_sheet(payload):
                     st.session_state.last_action = "校正"
+                    # 樂觀更新記憶體
                     idx = df_inv[df_inv["刀具編號"] == current_inv['刀具編號']].index[0]
                     st.session_state.data[0].loc[idx, "目前庫存"] = new_adj_qty
                     st.rerun()
