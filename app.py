@@ -1,8 +1,6 @@
-import streamlit as st
-import pandas as pd
-import gspread
+import os
 import json
-import io
+import gspread
 from google.oauth2.service_account import Credentials
 
 # --- 1. 設定區：請將這裡的 URL 換成你那三個發布好的 CSV 網址 ---
