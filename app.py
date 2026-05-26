@@ -124,28 +124,36 @@ with t2:
         st.success("✅ 驗證成功，進入管理模式")
         st.divider()
         
+        # --- 1. 折疊式庫存總覽 (含分類與搜尋) ---
         with st.expander("📦 點擊查看所有刀具庫存總覽", expanded=False):
+            # 取得分類清單
             categories = ["全部"] + df_inv["分類"].dropna().unique().tolist()
-            c1, c2 = st.columns(2)
-            with c1: sel_cat = st.selectbox("分類篩選", options=categories)
-            with c2: search_text = st.text_input("搜尋關鍵字")
             
+            c1, c2 = st.columns(2)
+            with c1:
+                sel_cat = st.selectbox("分類篩選", options=categories)
+            with c2:
+                search_text = st.text_input("搜尋關鍵字 (編號/名稱)")
+            
+            # 過濾邏輯
             df_show = df_inv.copy()
-            if sel_cat != "全部": df_show = df_show[df_show["分類"] == sel_cat]
+            if sel_cat != "全部":
+                df_show = df_show[df_show["分類"] == sel_cat]
             if search_text:
                 mask = df_show["刀具編號"].astype(str).str.contains(search_text, case=False, na=False) | \
                        df_show["品名規格"].astype(str).str.contains(search_text, case=False, na=False)
                 df_show = df_show[mask]
+            
             st.dataframe(df_show, use_container_width=True)
         
         st.divider()
         st.header("⚙️ 系統管理")
         mode = st.radio("選擇操作模式", ["刀具建檔", "庫存校正"], horizontal=True)
         
-        # --- 刀具建檔 ---
+        # --- 2. 刀具建檔區塊 ---
         if mode == "刀具建檔":
             st.subheader("📝 新增刀具")
-            # 這裡檢查是否剛建檔成功 (訊息顯示在下方)
+            # 顯示建檔成功訊息 (顯示在區塊下方)
             if st.session_state.get("last_action") == "建檔":
                 st.success("✅ 建檔成功！系統已同步。")
                 del st.session_state.last_action
@@ -161,15 +169,15 @@ with t2:
                 if st.form_submit_button("確認建檔"):
                     payload = {"action": "建檔", "t_id": new_id, "t_name": new_name, "cat": new_cat, "loc": new_loc, "qty": new_qty}
                     if post_data_to_sheet(payload):
-                        st.session_state.last_action = "建檔" # 標記成功
+                        st.session_state.last_action = "建檔"
                         st.rerun()
                     else:
                         st.error("❌ 建檔失敗")
 
-        # --- 庫存校正 ---
+        # --- 3. 庫存校正區塊 ---
         elif mode == "庫存校正":
             st.subheader("🔧 庫存數量校正")
-            # 這裡檢查是否剛校正成功 (訊息顯示在下方)
+            # 顯示校正成功訊息 (顯示在區塊下方)
             if st.session_state.get("last_action") == "校正":
                 st.success("✅ 庫存校正成功！")
                 del st.session_state.last_action
@@ -183,7 +191,7 @@ with t2:
             if st.button("確認校正"):
                 payload = {"action": "校正", "t_sel": current_inv['刀具編號'], "new_qty": new_adj_qty}
                 if post_data_to_sheet(payload):
-                    st.session_state.last_action = "校正" # 標記成功
+                    st.session_state.last_action = "校正"
                     # 樂觀更新記憶體
                     idx = df_inv[df_inv["刀具編號"] == current_inv['刀具編號']].index[0]
                     st.session_state.data[0].loc[idx, "目前庫存"] = new_adj_qty
@@ -192,32 +200,7 @@ with t2:
                     st.error("❌ 校正失敗")
                     
     elif pw != "":
-        st.warning("⚠️ 密碼錯誤")
-    else:
-        st.info("請輸入管理員密碼以存取管理功能")
-        # --- 3. 庫存校正功能 ---
-    elif mode == "庫存校正":
-            st.subheader("🔧 庫存數量校正")
-            # 選擇要校正的刀具
-            target_tool = st.selectbox("選擇刀具", df_inv["品名規格"].tolist())
-            current_inv = df_inv[df_inv["品名規格"] == target_tool].iloc[0]
-            
-            st.write(f"目前庫存：{current_inv['目前庫存']} | 儲位：{current_inv['儲位']}")
-            new_adj_qty = st.number_input("輸入正確庫存總數", min_value=0, value=int(current_inv['目前庫存']))
-            
-            if st.button("確認校正"):
-                payload = {"action": "校正", "t_sel": current_inv['刀具編號'], "new_qty": new_adj_qty}
-                if post_data_to_sheet(payload):
-                    st.session_state.success_msg = f"✅ {target_tool} 已校正為 {new_adj_qty}。"
-                    # 樂觀更新記憶體
-                    idx = df_inv[df_inv["刀具編號"] == current_inv['刀具編號']].index[0]
-                    st.session_state.data[0].loc[idx, "目前庫存"] = new_adj_qty
-                    st.rerun()
-                else:
-                    st.error("❌ 校正失敗")
-                    
-    elif pw != "":
-        st.warning("⚠️ 密碼錯誤")
+        st.warning("⚠️ 密碼錯誤，請重新輸入")
     else:
         st.info("請輸入管理員密碼以存取管理功能")
 with t3:
