@@ -1,6 +1,7 @@
 import streamlit as st
 import json
 import pandas as pd
+from google.oauth2.service_account import Credentials
 import gspread
 import io
 
@@ -12,10 +13,16 @@ SET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTo2vi_36qF4mzPkxzNOJ
 # --- 2. 函數區 ---
 @st.cache_resource
 def get_sh():
-    # 這是處理所有特殊符號最穩定的做法
-    raw_json = st.secrets["GCP_JSON"]
-    creds_dict = json.loads(raw_json)
-    return gspread.service_account_from_dict(creds_dict).open_by_key("1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8")
+    # 1. 讀取 Secrets
+    creds_dict = json.loads(st.secrets["GCP_JSON"])
+    
+    # 2. 這是 Google 官方標準認證方式，它對格式的容錯率比 gspread 高得多
+    scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+    creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+    
+    # 3. 將認證物件傳給 gspread
+    gc = gspread.authorize(creds)
+    return gc.open_by_key("1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8")
     
 def get_data():
     try:
