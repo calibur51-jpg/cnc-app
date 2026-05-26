@@ -39,10 +39,6 @@ def get_sh():
     creds = Credentials.from_service_account_info(creds_dict, scopes=["https://www.googleapis.com/auth/spreadsheets"])
     return gspread.authorize(creds).open_by_key("1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8")
 
-# API 寫入函數 (保留功能)
-def get_sh():
-    creds = Credentials.from_service_account_info(CRED_DICT, scopes=["https://www.googleapis.com/auth/spreadsheets"])
-    return gspread.authorize(creds).open_by_key("1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8")
 
 # --- 4. 介面 ---
 st.title("明星精密刀具管理系統")
