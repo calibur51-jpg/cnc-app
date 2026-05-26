@@ -7,18 +7,13 @@ CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTo2vi_36qF4mzPkxzNOJ
 @st.cache_data(ttl=60)
 def get_data():
     full_data = pd.read_csv(CSV_URL)
-    # 把所有欄位名稱印出來看
-    st.write("目前的欄位名稱有:", full_data.columns.tolist())
-    return full_data
-
-full_data = get_data()
-st.dataframe(full_data)
     
-    # 這裡依照你原本的 Excel 架構進行分拆 (假設這些資料能透過某些欄位辨識)
-    # 如果你的 CSV 包含了所有分頁，你可以這樣篩選：
+    # 請確保這三行「完全對齊」在同一個位置，前面不能有任何縮排
     df_inv = full_data[full_data['類型'] == 'inventory']
     df_log = full_data[full_data['類型'] == 'logs']
     df_set = full_data[full_data['類型'] == 'Settings']
+    
+    return df_inv, df_log, df_set
     
     return df_inv, df_log, df_set
 
