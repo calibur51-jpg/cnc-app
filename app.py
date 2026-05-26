@@ -1,13 +1,28 @@
 import streamlit as st
-import pandas as pd
-import io  # <--- 請務必檢查這一行有沒有補上
-import gspread # 如果還有用到也可以留著，沒用到可刪除
+import gspread
+import json
+from google.oauth2.service_account import Credentials
 
-# 這裡換成你那三個分頁的 CSV 下載連結
-INV_URL = "https://docs.google.com/spreadsheets/d/1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8/export?format=csv&gid=0"
-LOG_URL = "https://docs.google.com/spreadsheets/d/1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8/export?format=csv&gid=1320901506" # 請替換為logs分頁的gid
-SET_URL = "https://docs.google.com/spreadsheets/d/1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8/export?format=csv&gid=657176737" # 請替換為Settings分頁的gid
+# 這是最新的金鑰內容
+CRED_DICT = {
+  "type": "service_account",
+  "project_id": "cnc-system-497409",
+  "private_key_id": "d3209413a7333a6627e7e82b1470c421887f1bcb",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDBXszQ8ez3DvoD\n9jfe5mPEKVHwp03WULp2E5jmEfZNnpmoVnNdXm0TC6d4z9Zd2FKRRntvj7m1Bzw2\nxkJSkemb047TKp0B+jFDucJJzkTtNDAiaM77Xk44I4AjTkdQFYOgHjDs+hAMmzvS\n8J3LAcq4FLOnW3yv7Ig0J7biahdKaAa6x8o4RW6nQpz4H3owIgjxGcROobvsmMB/\niOaLQmgfVToLlAQcCJ4+0gW+3jHJU1x/gTMmITPWUhG+9Kg0CNSTdr3v3qhk7T8Y\ntWaMB1nkXfAmFwL6xayZVVVbDa42d7T+WEGPNdj83xkG4HE/MEQ+un5A1ryvtazW\nVCp0Ni6JAgMBAAECggEAEqP2e0lpAhd04Tsj32ZG9YbUre3Y1mk1klKZDYurekfI\n0PYVfKmQuvJniGFDrUwASJ4aYdKhcKqkArU5uT803XdHSEKuPD2vsFNIwAfk89dR\nMQ34rvlkMav1ayHdhMIwLDgg2AVSlP6FZbQZh/NyJOzk9SP/+O8Eob921SxsNpk1\n6Pf3F7HzO8MPhwk6UTYaAWyT0Rlj6wwrEe6lZpZd7uwPQqmujV6GtKIcrs4+tguM\nsU2/JNRkt3Nl0BBcKaD+en6bNtk1PYflyzap0ta+mKQ3kEsKG2+ozCvUDmTrykij\nHLSY8Yia8z9Rg5SxqIZql+kF6FVEwxJnJzTotclYsQKBgQDm2eE9E6w0Bgimv2Fi\nvXWp33jQv7X2rdmWM0Sh5qKRXVIz2ezD3LBSIvffCsBmfkVQNAM5Gaa3ZKsPuwbc\nD7wMHBIEpony3DCQZA0R0KIgqZG290Tzh42M9ZBqCDcuvPCiks+mpATtwUSn2HfA\na0kJ/kcZ0Za8v3yfphei9IyFkQKBgQDWb6H4n/1yYPziU6N1raAW8H+9Qd74VIIl\nJxWekO4gLmwmZP8ZGf79ZO9jCde4tmF/Yxp6av5UzMfdgH1/ebfU5Eqs1olWhD+u\nOFGiND49SAkdKCFcKdbOgdpGZubsBg8wJiRfxa5sx/lp/3OD93FTRU21p93eLiSr\nkUsN+L+9eQKBgCUYT8RDvAEkExHQYPK/5P9mBIDuvWulJfinxliJugfHyiTA2PXk\nKYUZT2FM1fviQHsR0I7FW2/OwlolwIVuFdaQUCjlJfebgEZDfYImV1cOSHbxJuhH\nGOzUrN8M8OkWvUgydSGe65fU3ZZnB18pHjR34q74adNspbb1toid6VKxAoGBAI5d\nMtWTsnpbdcj06lLYYK6aINSPhO6tfHIaDrplUhK/f0HGT65kmeu1NVE1WajiPLyM\nGSopGo1GH3MpOSiGsMuAfStei3OK/ZQ3A8uCj8ezqYlX+T3s8RXNFBMlgi40n6TB\nzehfn7vM0APVeuWkQ/Ka0krGFgDJ9cKKBaBTA0lRAoGAZljN5SUQNMkT8p8bFcAL\nr1RGmbRgKm/yxfcMkW52R8bOBmShinliWkr+4/gHToXzF9N9qX6eou2UMIBANK2k\n83jrBGPKFby5Zv4y5uKX6/1HKHmmi3lWqCgHgzU37DRkoowldA26jBGZiXFx336H\ns+VRW8oMlI8KCtPbs86hoEY=\n-----END PRIVATE KEY-----",
+  "client_email": "app-484@cnc-system-497409.iam.gserviceaccount.com",
+  "client_id": "102780254846012931462",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/app-484%40cnc-system-497409.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
 
+def get_sh():
+    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+    creds = Credentials.from_service_account_info(CRED_DICT, scopes=scopes)
+    gc = gspread.authorize(creds)
+    return gc.open_by_key("1Y3XJLmzIH2y2l-XWkQfOzhEPBcxSyFFW3RvYpG6JZJ8")
 @st.cache_data(ttl=60)
 def get_data():
     inv = pd.read_csv(INV_URL)
