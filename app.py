@@ -4,6 +4,8 @@ import requests
 import time
 import io
 from PIL import Image
+import numpy as np    # 處理影像陣列必須
+import cv2            # QR Code 偵測必須
 
 # --- 1. 設定區 ---
 # 這些 CSV 連結是讀取即時資料最穩定、不用安裝額外套件的方式
