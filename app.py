@@ -13,7 +13,7 @@ SET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTo2vi_36qF4mzPkxzNOJ
 WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyZ6-S7x4fp4iCQbdpClMlXQFUxQ9q036XFtCZxuObS2mqaF7wv-U26QOJhqGsvxHyskQ/exec"
 
 # --- 2. 函數區 ---
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=0)
 def get_data():
     try:
         df_inv = pd.read_csv(INV_URL, encoding='utf-8-sig')
