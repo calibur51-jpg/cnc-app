@@ -219,30 +219,119 @@ with t2:
         st.warning("⚠️ 密碼錯誤，請重新輸入")
     else:
         st.info("請輸入管理員密碼以存取管理功能")
+with t3:
+    _, df_log, _ = st.session_state.data
+    
+    st.header("📊 刀具管理戰情室")
+    
+    if st.text_input("輸入密碼", type="password", key="pw3") == "1234":
+        if not df_log.empty:
+            # 確保數量是數字格式
+            df_log["數量"] = pd.to_numeric(df_log["數量"], errors='coerce').fillna(0)
+            
+            # 檢查歷史紀錄有沒有「單價」欄位，沒有就去對照庫存表的單價
+            if "單價" in df_log.columns:
+                df_log["單價"] = pd.to_numeric(df_log["單價"], errors='coerce').fillna(0)
+            else:
+                price_map = df_inv.set_index("刀具編號")["單價"].to_dict()
+                df_log["單價"] = df_log["刀具編號"].map(price_map).fillna(0)
+                df_log["單價"] = pd.to_numeric(df_log["單價"], errors='coerce').fillna(0)
+            
+            # --- 1. 原本的戰情指標與圖表 ---
+            df_usage = df_log[df_log["動作"] == "領用"].copy()
+            c_m1, c_m2, c_m3 = st.columns(3)
+            c_m1.metric("總領用次數", len(df_usage))
+            c_m2.metric("總消耗數量", int(df_usage["數量"].sum()))
+            c_m3.metric("涵蓋機台數", df_usage["備註"].nunique())
+            
+            st.divider()
+            st.subheader("📈 歷史累積消耗分析")
+            st.markdown("**🔥 刀具領用排行 (Top 5)**")
+            top_tools = df_usage.groupby("刀具編號")["數量"].sum().sort_values(ascending=False).head(5)
+            st.bar_chart(top_tools)
+            
+            col1, col2, col3 = st.columns(3)
+            with col1: 
+                st.markdown("**機台消耗**")
+                st.bar_chart(df_usage.groupby("備註")["數量"].sum())
+            with col2: 
+                st.markdown("**人員領用**")
+                st.bar_chart(df_usage.groupby("經辦人員")["數量"].sum())
+            with col3: 
+                st.markdown("**原因分析**")
+                st.bar_chart(df_usage.groupby("原因類型")["數量"].sum())
+            
+            st.divider()
+            
+            # --- 2. 原本的歷史紀錄進階篩選與下載 (自動補上品名規格) ---
+            st.header("📜 歷史紀錄進階篩選")
+            col_a, col_b, col_c = st.columns(3)
+            _, _, df_set = st.session_state.data 
+            
+            sel_reasons = col_a.multiselect("篩選原因:", ["正常磨損", "斷刀", "架機", "其他"])
+            sel_staff = col_b.multiselect("篩選人員:", df_set["人員"].replace("", pd.NA).dropna().unique().tolist())
+            sel_machines = col_c.multiselect("篩選機台:", df_set["機台"].replace("", pd.NA).dropna().tolist())
+            search_wo = st.text_input("🔍 搜尋工單號碼:")
+            
+            df_filtered = df_log.copy()
+            name_map = df_inv.set_index("刀具編號")["品名規格"].to_dict()
+            df_filtered["品名規格"] = df_filtered["刀具編號"].map(name_map).fillna("未知刀具")
+            
+            all_cols = df_filtered.columns.tolist()
+            if "品名規格" in all_cols and "刀具編號" in all_cols:
+                all_cols.remove("品名規格")
+                idx_id = all_cols.index("刀具編號")
+                all_cols.insert(idx_id + 1, "品名規格")
+                df_filtered = df_filtered[all_cols]
 
-File "/mount/src/cnc-app/app.py", line 317, in <module>
-    df_in = df_this_month[df_this_month["動作"] == "進貨"].groupby(["刀具編號", "品名規格"])["數量"].sum().reset_index(name="本月進貨總數")
-            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
-File "/home/adminuser/venv/lib/python3.14/site-packages/pandas/util/_decorators.py", line 336, in wrapper
-    return func(*args, **kwargs)
-File "/home/adminuser/venv/lib/python3.14/site-packages/pandas/core/frame.py", line 10833, in groupby
-    return DataFrameGroupBy(
-        obj=self,
-    ...<6 lines>...
-        dropna=dropna,
-    )
-File "/home/adminuser/venv/lib/python3.14/site-packages/pandas/core/groupby/groupby.py", line 1095, in __init__
-    grouper, exclusions, obj = get_grouper(
-                               ~~~~~~~~~~~^
-        obj,
-        ^^^^
-    ...<4 lines>...
-        dropna=self.dropna,
-        ^^^^^^^^^^^^^^^^^^^
-    )
-    ^
-File "/home/adminuser/venv/lib/python3.14/site-packages/pandas/core/groupby/grouper.py", line 901, in get_grouper
-    raise KeyError(gpr)
+            if sel_reasons: df_filtered = df_filtered[df_filtered["原因類型"].isin(sel_reasons)]
+            if sel_staff: df_filtered = df_filtered[df_filtered["經辦人員"].isin(sel_staff)]
+            if sel_machines: df_filtered = df_filtered[df_filtered["備註"].isin(sel_machines)]
+            if search_wo: df_filtered = df_filtered[df_filtered["工單號碼"].astype(str).str.contains(search_wo.strip(), case=False, na=False)]
+            
+            st.dataframe(df_filtered.sort_values(by="時間", ascending=False), use_container_width=True)
+            
+            buf = io.BytesIO()
+            with pd.ExcelWriter(buf) as w:
+                df_filtered.to_excel(w, sheet_name='紀錄(含規格)', index=False)
+                df_inv.to_excel(w, sheet_name='庫存總表', index=False)
+            st.download_button("📥 下載完整總歷史報表 (含品名規格)", buf.getvalue(), "CNC_Full_Report_With_Names.xlsx")
+            
+            st.divider()
+
+            # --- 3. 本月財務與進銷存對帳區 ---
+            df_log["時間"] = pd.to_datetime(df_log["時間"], errors='coerce')
+            current_month = pd.Timestamp.now().strftime("%Y-%m")
+            df_this_month = df_log[df_log["時間"].dt.strftime("%Y-%m") == current_month].copy()
+            
+            st.header(f"📅 本月 ({current_month}) 財務與進銷存對帳表")
+            
+            if not df_this_month.empty:
+                df_in = df_this_month[df_this_month["動作"] == "進貨"].groupby("刀具編號")["數量"].sum().reset_index(name="本月進貨總數")
+                df_out = df_this_month[df_this_month["動作"] == "領用"].groupby("刀具編號")["數量"].sum().reset_index(name="本月領用總數")
+                df_prices = df_this_month.groupby("刀具編號")["單價"].max().reset_index(name="單價")
+                
+                df_m_report = df_prices.merge(df_in, on="刀具編號", how="left").merge(df_out, on="刀具編號", how="left")
+                df_m_report["本月進貨總數"] = df_m_report["本月進貨總數"].fillna(0)
+                df_m_report["本月領用總數"] = df_m_report["本月領用總數"].fillna(0)
+                
+                df_m_report["品名規格"] = df_m_report["刀具編號"].map(name_map).fillna("未命名刀具")
+                
+                df_m_report["本月進貨總金額"] = df_m_report["本月進貨總數"] * df_m_report["單價"]
+                df_m_report["本月用刀總金額"] = df_m_report["本月領用總數"] * df_m_report["單價"]
+                
+                df_m_report = df_m_report[["刀具編號", "品名規格", "單價", "本月進貨總數", "本月進貨總金額", "本月領用總數", "本月用刀總金額"]]
+                
+                c_f1, c_f2 = st.columns(2)
+                c_f1.metric("本月買刀總金額", f"${int(df_m_report['本月進貨總金額'].sum()):,}")
+                c_f2.metric("本月用刀總金額 (消耗成本)", f"${int(df_m_report['本月用刀總金額'].sum()):,}")
+                
+                st.dataframe(df_m_report, use_container_width=True)
+                
+                buf_m = io.BytesIO()
+                with pd.ExcelWriter(buf_m) as w:
+                    df_m_report.to_excel(w, sheet
+
 with t4:
     st.header("📥 進貨與盤點系統")
     pw = st.text_input("輸入管理員密碼", type="password", key="pw_t4")
