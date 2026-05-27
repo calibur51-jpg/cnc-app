@@ -234,7 +234,7 @@ with t2:
                     new_adj_qty = st.number_input("輸入正確現場庫存總數", min_value=0, value=default_qty)
                     
                     # 💡 確保這行按鈕的括號與引號完全對齊閉合
-                    if st.button("確認校正", key="t2_adj_confirm_btn"):
+                        if st.button("確認校正", key="t2_adj_confirm_btn"):
                         payload = {"action": "校正", "t_sel": current_inv['刀具編號'], "new_qty": new_adj_qty}
                         if post_data_to_sheet(payload):
                             st.session_state.last_action = "校正"
@@ -243,6 +243,10 @@ with t2:
                                 st.session_state.data[0].loc[idx, "目前庫存"] = new_adj_qty
                             except:
                                 st.session_state.data[0].loc[idx, "currently_stock"] = new_adj_qty
+                                
+                            # 💡 核心修正：校正成功後，立刻強制清除網頁快取
+                            st.cache_data.clear() 
+                            
                             st.rerun()
                         else:
                             st.error("❌ 校正失敗")
@@ -581,11 +585,14 @@ with t4:
                                 except:
                                     pass
                                     
-                            # 2. 處理單價記憶體更新
+# 2. 處理單價記憶體更新
                             try:
                                 st.session_state.data[0].loc[idx, "單價"] = price_input
                             except:
                                 pass
+                            
+                            # 💡 核心修正：進貨成功後，立刻強制清除網頁快取，逼全站（含 t3 財務看板）重新讀取 Google Sheets
+                            st.cache_data.clear() 
                             
                             st.session_state.success_msg = f"✅ {mode}成功！庫存與單價已即時同步。"
                             st.rerun()
