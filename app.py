@@ -379,9 +379,22 @@ with t3:
                 df_acc = df_acc.merge(df_in, on="刀具編號", how="left")
                 df_acc = df_acc.merge(df_out, on="刀具編號", how="left")
                 
-                # 欄位空值補齊
+# 💡 終極防禦：用更安全的方式處理單價空值對照，防止文字轉 float 噴錯
                 inv_price_map = df_inv.set_index("刀具編號")["單價"].to_dict()
-                df_acc["當月單價"] = df_acc.apply(
+                
+                def safe_get_price(row):
+                    # 如果當月有進貨單價且大於 0，就優先使用
+                    if pd.notna(row["當月單價"]) and row["當月單價"] > 0:
+                        return row["當月單價"]
+                    
+                    # 否則去抓主表的單價，並用 pd.to_numeric 強制轉型，萬一出錯就給 0
+                    raw_p = inv_price_map.get(row["刀具編號"], 0)
+                    try:
+                        return float(pd.Series(raw_p).to_numeric(errors='coerce').fillna(0).iloc[0])
+                    except:
+                        return 0.0
+
+                df_acc["當月單價"] = df_acc.apply(safe_get_price, axis=1)
                     lambda row: row["當月單價"] if pd.notna(row["當月單價"]) and row["當月單價"] > 0 
                     else float(inv_price_map.get(row["刀具編號"], 0)), axis=1
                 )
