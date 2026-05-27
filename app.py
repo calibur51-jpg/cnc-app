@@ -254,16 +254,22 @@ with t2:
     else:
         st.info("請輸入管理員密碼以存取管理功能")
 with t3:
-    _, df_log, _ = st.session_state.data
-    
     st.header("📊 刀具管理戰情室")
     
     if st.text_input("輸入密碼", type="password", key="pw3") == "1234":
+        # 💡 終極修正：只要密碼正確進來，立刻強制清除快取並重新載入最新資料！
+        # 這樣能保證 t4 剛改完的價格，在 t3 畫面能 100% 即時更新。
+        st.cache_data.clear()
+        
+        # 重新從 session_state 撈取被重新載入的最新資料
+        _, df_log, _ = st.session_state.data
+        df_inv = st.session_state.data[0] # 確保拿到最新的庫存與單價對照表
+        
         if not df_log.empty:
             # 確保數量是數字格式
             df_log["數量"] = pd.to_numeric(df_log["數量"], errors='coerce').fillna(0)
             
-            # 💡 做法 A 核心優化：將原本邏輯中的 "單價" 欄位名，完全對齊你新改的 "價格" 欄位
+            # 做法 A 核心優化：將原本邏輯中的 "單價" 欄位名，完全對齊你新改的 "價格" 欄位
             if "價格" in df_log.columns:
                 df_log["價格"] = pd.to_numeric(df_log["價格"], errors='coerce').fillna(0)
             else:
@@ -298,7 +304,7 @@ with t3:
             
             st.divider()
             
-            # --- 2. 歷史紀錄進階篩選與下載 (已移除最右邊重複的單價欄位) ---
+            # --- 2. 歷史紀錄進階篩選與下載 ---
             st.header("📜 歷史紀錄進階篩選")
             col_a, col_b, col_c = st.columns(3)
             _, _, df_set = st.session_state.data 
@@ -317,7 +323,7 @@ with t3:
             # 調整顯示順序（移除原本會自己長出來的最後一欄「單價」，只保留「價格」）
             all_cols = df_filtered.columns.tolist()
             if "單價" in all_cols:
-                all_cols.remove("單價") # 👈 關鍵：直接把重複的單價欄位從畫面上抹除
+                all_cols.remove("單價")
                 
             if "品名規格" in all_cols and "刀具編號" in all_cols:
                 all_cols.remove("品名規格")
