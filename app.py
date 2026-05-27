@@ -6,17 +6,17 @@ import io
 from PIL import Image
 import streamlit as st
 
-# 1. 這裡只留一個 set_page_config，將所有設定整合進去
+# 1. 這裡處理電腦瀏覽器分頁的小圖示 (使用本地路徑)
 st.set_page_config(
     page_title="明星刀管", 
-    page_icon="https://raw.githubusercontent.com/calibur51-jpg/cnc-app/main/icon.png?v=4", 
+    page_icon="icon.png",  
     layout="wide"
 )
 
-# 2. 定義你的圖片連結
+# 2. 這裡處理手機「加入主畫面」的專屬圖示 (保留 URL)
+# 因為 HTML 注入相對路徑容易跑掉，保留 URL 反而比較穩定
 ICON_URL = "https://raw.githubusercontent.com/calibur51-jpg/cnc-app/main/icon.png?v=4"
 
-# 3. 注入 PWA 設定
 st.markdown(f"""
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
