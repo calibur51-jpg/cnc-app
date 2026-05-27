@@ -6,12 +6,19 @@ import io
 from PIL import Image
 import streamlit as st
 
-# 讓網頁看起來像 App 的設定
-st.markdown("""
+# 設定網頁標題與布局
+st.set_page_config(page_title="刀具管理", layout="wide")
+
+# 這是根據你的 GitHub 儲存庫自動生成的正確路徑
+ICON_URL = "https://raw.githubusercontent.com/calibur51-jpg/cnc-app/main/icon.png"
+
+st.markdown(f"""
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="刀具管理">
+    <meta name="apple-mobile-web-app-title" content="明星刀管">
+    <link rel="apple-touch-icon" href="{ICON_URL}">
+    <link rel="shortcut icon" href="{ICON_URL}">
 """, unsafe_allow_html=True)
 
 
