@@ -490,7 +490,7 @@ with t4:
     if pw == "1234":
         st.success("✅ 驗證成功")
         st.divider()
-        low_stock_df = df_inv[df_inv["currently_stock"] <= df_inv["安全庫存"]] if "currently_stock" in df_inv.columns else df_inv[df_inv["currently_stock"] <= df_inv["安全庫存"]] if "currently_stock" in df_inv.columns else df_inv[df_inv["目前庫存"] <= df_inv["安全庫存"]]
+        low_stock_df = df_inv[df_inv["currently_stock"] <= df_inv["安全庫存"]] if "currently_stock" in df_inv.columns else df_inv[df_inv["目前庫存"] <= df_inv["安全庫存"]]
         if not low_stock_df.empty:
             st.warning(f"🚨 注意：共有 {len(low_stock_df)} 項刀具低於安全庫存！")
             with st.expander("📦 查看低庫存清單", expanded=True):
@@ -505,7 +505,6 @@ with t4:
             sel_cat = st.selectbox("篩選分類", options=categories, key="t4_cat")
         with c2:
             search_text = st.text_input("關鍵字搜尋", key="t4_search")
-            
         df_show = df_inv.copy()
         if sel_cat != "全部":
             df_show = df_show[df_show["分類"] == sel_cat]
@@ -513,53 +512,71 @@ with t4:
             mask = df_show["刀具編號"].astype(str).str.contains(search_text, case=False, na=False) | \
                    df_show["品名規格"].astype(str).str.contains(search_text, case=False, na=False)
             df_show = df_show[mask]
-            
         tool_options = df_show["品名規格"].tolist()
         if not tool_options:
-            st.error("❌ 找不到符合條件的刀具，請重新篩選或清除關鍵字")
+            st.error("找不到符合條件的刀具")
         else:
             sel_tool_name = st.selectbox("搜尋結果", tool_options, key="t4_tool_sel")
             
-            # 💡 核心防呆修正：先篩選出 matching 資料
+            # 核心防呆：先抓出符合品名的資料集
             matched_df = df_show[df_show["品名規格"] == sel_tool_name]
             
-            # 確保有抓到資料才執行 .iloc[0]，防止 Index out-of-bounds 閃退
             if not matched_df.empty:
                 tool_info = matched_df.iloc[0]
-                
                 try:
                     cur_qty = int(tool_info["目前庫存"])
                 except:
                     cur_qty = int(tool_info["currently_stock"])
                 safe_qty = int(tool_info["安全庫存"])
-                price = tool_info["單價"]
+                
+                # 確保單價是標準數字
+                try:
+                    current_price = float(tool_info["單價"])
+                except:
+                    current_price = 0.0
+                    
                 col_a, col_b, col_c = st.columns(3)
                 col_a.metric("目前庫存", cur_qty)
                 col_b.metric("安全水位", safe_qty)
-                col_c.metric("單價", f"${price}")
+                col_c.metric("目前系統單價", f"${int(current_price)}")
+                
                 mode = st.radio("選擇操作模式", ["進貨", "盤點"], horizontal=True)
+                
                 with st.form("t4_action_form", clear_on_submit=True):
                     qty_input = st.number_input("數量", min_value=0, value=0)
+                    
+                    # 💡 亮點功能：進貨時可以直接調整單價，預設帶入目前單價
+                    if mode == "進貨":
+                        price_input = st.number_input("本次進貨單價 (若有變動請直接修改)", min_value=0.0, value=current_price, step=10.0)
+                    else:
+                        price_input = current_price # 盤點模式不連動改價
+                        
                     u_input = st.text_input("操作人員")
-                    btn_text = "確認進貨 (累加)" if mode == "進貨" else "確認盤點 (覆寫)"
+                    btn_text = "確認進貨 (累加庫存與更新單價)" if mode == "進貨" else "確認盤點 (覆寫庫存)"
+                    
                     if st.form_submit_button(btn_text):
                         payload = {
                             "action": mode,
                             "t_id": tool_info["刀具編號"],
                             "qty": qty_input,
                             "new_qty": qty_input,
+                            "price": price_input, # 💡 傳送新單價給後台
                             "u": u_input
                         }
                         if post_data_to_sheet(payload):
                             idx = df_inv[df_inv["刀具編號"] == tool_info["刀具編號"]].index[0]
+                            # 樂觀更新記憶體庫存
                             try:
-                                st.session_state.data[0].loc[idx, "目前庫存"] += qty_input if mode == "進貨" else qty_input
+                                st.session_state.data[0].loc[idx, "目前庫存"] = (cur_qty + qty_input) if mode == "進貨" else qty_input
                             except:
-                                st.session_state.data[0].loc[idx, "currently_stock"] += qty_input if mode == "進貨" else qty_input
-                            st.session_state.success_msg = f"✅ {btn_text}成功！"
+                                st.session_state.data[0].loc[idx, "currently_stock"] = (cur_qty + qty_input) if mode == "進貨" else qty_input
+                            # 💡 樂觀更新記憶體單價
+                            st.session_state.data[0].loc[idx, "單價"] = price_input
+                            
+                            st.session_state.success_msg = f"✅ {mode}成功！庫存與單價已即時同步。"
                             st.rerun()
                         else:
-                            st.error("❌ 操作失敗")
+                            st.error("❌ 操作失敗，請檢查網路連線")
             else:
                 st.warning("⚠️ 刀具資料加載中，請稍候...")
                 
