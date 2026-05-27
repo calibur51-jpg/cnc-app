@@ -188,21 +188,19 @@ with t2:
                     else:
                         st.error("❌ 建檔失敗")
                         
-        # --- 2. 庫存校正區塊 (💡 已加入全新分類篩選功能 + 終極防呆) ---
+# --- 2. 庫存校正區塊  ---
         elif mode == "庫存校正":
             st.subheader("🔧 庫存數量校正")
             if st.session_state.get("last_action") == "校正":
                 st.success("✅ 庫存校正成功！")
                 del st.session_state.last_action
                 
-            # 💡 新增：庫存校正專用的分類與搜尋輸入欄位
             cc1, cc2 = st.columns(2)
             with cc1:
                 adj_cat = st.selectbox("篩選分類", options=all_categories, key="t2_adj_cat")
             with cc2:
                 adj_search = st.text_input("關鍵字搜尋", key="t2_adj_search")
                 
-            # 根據條件過濾出校正選單要顯示的刀具
             df_adj_show = df_inv.copy()
             if adj_cat != "全部":
                 df_adj_show = df_adj_show[df_adj_show["分類"] == adj_cat]
@@ -217,8 +215,6 @@ with t2:
                 st.error("❌ 找不到符合條件的刀具，請重新篩選或清除關鍵字")
             else:
                 target_tool = st.selectbox("選擇目標刀具", tool_list_t2, key="t2_tool_sel")
-                
-                # 安全鎖：先抓出符合品名的資料集
                 matched_inv_df = df_inv[df_inv["品名規格"] == target_tool]
                 
                 if not matched_inv_df.empty:
@@ -228,7 +224,7 @@ with t2:
                         raw_qty = int(pd.Series(current_inv['currently_stock']).to_numeric(errors='coerce').fillna(0).astype(int).iloc[0])
                     except:
                         try:
-                            raw_qty = int(pd.Series(current_inv['目前庫存']).to_numeric(errors='coerce').fillna(0).astype(int).iloc[0])
+                            raw_qty = int(pd.Series(current_inv['currently_stock']).to_numeric(errors='coerce').fillna(0).astype(int).iloc[0])
                         except:
                             raw_qty = 0
                         
@@ -237,7 +233,26 @@ with t2:
                     
                     new_adj_qty = st.number_input("輸入正確現場庫存總數", min_value=0, value=default_qty)
                     
-                    if st.button("確認校正", key="t
+                    # 💡 確保這行按鈕的括號與引號完全對齊閉合
+                    if st.button("確認校正", key="t2_adj_confirm_btn"):
+                        payload = {"action": "校正", "t_sel": current_inv['刀具編號'], "new_qty": new_adj_qty}
+                        if post_data_to_sheet(payload):
+                            st.session_state.last_action = "校正"
+                            idx = df_inv[df_inv["刀具編號"] == current_inv['刀具編號']].index[0]
+                            try:
+                                st.session_state.data[0].loc[idx, "目前庫存"] = new_adj_qty
+                            except:
+                                st.session_state.data[0].loc[idx, "currently_stock"] = new_adj_qty
+                            st.rerun()
+                        else:
+                            st.error("❌ 校正失敗")
+                else:
+                    st.warning("⚠️ 刀具資料同步中，請稍候...")
+
+    elif pw != "":
+        st.warning("⚠️ 密碼錯誤，請重新輸入")
+    else:
+        st.info("請輸入管理員密碼以存取管理功能")
 with t3:
     _, df_log, _ = st.session_state.data
     
