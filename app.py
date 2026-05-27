@@ -160,7 +160,6 @@ with t2:
         st.header("⚙️ 系統管理")
         mode = st.radio("選擇操作模式", ["刀具建檔", "庫存校正"], horizontal=True)
         
-        # 取得所有現有的分類清單，供後續區塊共用
         all_categories = ["全部"] + df_inv["分類"].dropna().unique().tolist()
         
         # --- 1. 刀具建檔區塊 ---
@@ -188,7 +187,7 @@ with t2:
                     else:
                         st.error("❌ 建檔失敗")
                         
-# --- 2. 庫存校正區塊  ---
+        # --- 2. 庫存校正區塊 ---
         elif mode == "庫存校正":
             st.subheader("🔧 庫存數量校正")
             if st.session_state.get("last_action") == "校正":
@@ -224,7 +223,7 @@ with t2:
                         raw_qty = int(pd.Series(current_inv['currently_stock']).to_numeric(errors='coerce').fillna(0).astype(int).iloc[0])
                     except:
                         try:
-                            raw_qty = int(pd.Series(current_inv['currently_stock']).to_numeric(errors='coerce').fillna(0).astype(int).iloc[0])
+                            raw_qty = int(pd.Series(current_inv['目前庫存']).to_numeric(errors='coerce').fillna(0).astype(int).iloc[0])
                         except:
                             raw_qty = 0
                         
@@ -233,8 +232,7 @@ with t2:
                     
                     new_adj_qty = st.number_input("輸入正確現場庫存總數", min_value=0, value=default_qty)
                     
-                    # 💡 確保這行按鈕的括號與引號完全對齊閉合
-           if st.button("確認校正", key="t2_adj_confirm_btn"):
+                    if st.button("確認校正", key="t2_adj_confirm_btn"):
                         payload = {"action": "校正", "t_sel": current_inv['刀具編號'], "new_qty": new_adj_qty}
                         if post_data_to_sheet(payload):
                             st.session_state.last_action = "校正"
@@ -244,9 +242,7 @@ with t2:
                             except:
                                 st.session_state.data[0].loc[idx, "currently_stock"] = new_adj_qty
                                 
-                            # 💡 核心修正：校正成功後，立刻強制清除網頁快取
                             st.cache_data.clear() 
-                            
                             st.rerun()
                         else:
                             st.error("❌ 校正失敗")
