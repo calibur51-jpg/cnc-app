@@ -541,10 +541,11 @@ with t4:
                 col_c.metric("目前系統單價", f"${int(current_price)}")
                 
                 mode = st.radio("選擇操作模式", ["進貨", "盤點"], horizontal=True)
+                
                 with st.form("t4_action_form", clear_on_submit=True):
                     qty_input = st.number_input("數量", min_value=0, value=0)
                     
-                    # 💡 進貨時可以直接調整單價，預設帶入目前單價
+                    # 進貨時可以直接調整單價，預設帶入目前單價
                     if mode == "進貨":
                         price_input = st.number_input("本次進貨單價 (若有變動請直接修改)", min_value=0.0, value=current_price, step=10.0)
                     else:
@@ -565,22 +566,22 @@ with t4:
                         if post_data_to_sheet(payload):
                             idx = df_inv[df_inv["刀具編號"] == tool_info["刀具編號"]].index[0]
                             
-                            # 1. 處理庫存記憶體更新 (防呆全包)
+                            # 1. 處理庫存記憶體更新 (這次縮排完全理順了)
                             try:
                                 if mode == "進貨":
                                     st.session_state.data[0].loc[idx, "目前庫存"] = cur_qty + qty_input
                                 else:
-                                    st.session_state.data[0].loc[idx, "目前庫存"] = qty_input
+                                    st.session_state.data[0].loc[idx, "currently_stock"] = qty_input
                             except:
                                 try:
                                     if mode == "進貨":
                                         st.session_state.data[0].loc[idx, "currently_stock"] = cur_qty + qty_input
                                     else:
                                         st.session_state.data[0].loc[idx, "currently_stock"] = qty_input
-                                  except:
+                                except:
                                     pass
                                     
-                            # 2. 處理單價記憶體更新 (強制安全防線，絕不閃退)
+                            # 2. 處理單價記憶體更新
                             try:
                                 st.session_state.data[0].loc[idx, "單價"] = price_input
                             except:
