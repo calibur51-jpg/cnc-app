@@ -234,7 +234,7 @@ with t2:
                     new_adj_qty = st.number_input("輸入正確現場庫存總數", min_value=0, value=default_qty)
                     
                     # 💡 確保這行按鈕的括號與引號完全對齊閉合
-                        if st.button("確認校正", key="t2_adj_confirm_btn"):
+           if st.button("確認校正", key="t2_adj_confirm_btn"):
                         payload = {"action": "校正", "t_sel": current_inv['刀具編號'], "new_qty": new_adj_qty}
                         if post_data_to_sheet(payload):
                             st.session_state.last_action = "校正"
