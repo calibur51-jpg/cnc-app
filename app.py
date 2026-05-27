@@ -276,8 +276,19 @@ with t3:
         if not df_log.empty:
             # 1. 基礎資料與格式整理
             df_log["數量"] = pd.to_numeric(df_log["數量"], errors='coerce').fillna(0)
-            df_log["時間"] = pd.to_datetime(df_log["時間"], errors='coerce')
-            df_log["月份"] = df_log["時間"].dt.strftime("%Y-%m")
+            
+            # 💡 核心優化：相容繁體中文「上午/下午」時間格式的防禦機制
+            try:
+                # 先嘗試將中文字進行格式替換（上午轉 AM，下午轉 PM）以便 Python 解析
+                time_series = df_log["時間"].astype(str).str.replace("上午", "AM", case=False).str.replace("下午", "PM", case=False)
+                df_log["時間_處理後"] = pd.to_datetime(time_series, errors='coerce')
+                df_log["月份"] = df_log["時間_處理後"].dt.strftime("%Y-%m")
+            except:
+                # 萬一真的解析失敗，啟動備用防線：直接用字串切割字眼（抓前7個字，例如 2026/05 或 2026-05）
+                df_log["月份"] = df_log["時間"].astype(str).str.strip().str.slice(0, 7).str.replace("/", "-")
+            
+            # 確保月份格式統一為 YYYY-MM (補齊可能缺失的 0，例如 2026-5 變成 2026-05)
+            df_log["月份"] = df_log["月份"].apply(lambda x: f"{x[:5]}0{x[5:]}" if pd.notna(x) and len(x) == 6 and x[4] == '-' else x)
             
             # 統一將 logs 的價格欄位轉為數字以供財務計算
             if "價格" in df_log.columns:
@@ -325,13 +336,10 @@ with t3:
             
             df_filtered = df_log.copy()
             
-            # 補上品名規格方便現場對照
             name_map = df_inv.set_index("刀具編號")["品名規格"].to_dict()
             df_filtered["品名規格"] = df_filtered["刀具編號"].map(name_map).fillna("未知刀具")
             
-            # 💡 核心改動：調整歷史明細的欄位順序，並徹底排除「價格」與「單價」
             display_cols = ["時間", "動作", "刀具編號", "品名規格", "數量", "經辦人員", "原因類型", "備註", "工單號碼"]
-            # 安全機制：只取工作表裡真正有的欄位
             display_cols = [c for c in display_cols if c in df_filtered.columns]
             df_filtered = df_filtered[display_cols]
 
@@ -344,14 +352,15 @@ with t3:
             
             st.divider()
 
-            # --- 【💰 月底財務與進銷存對帳表（修正版）】 ---
+            # --- 【💰 月底財務與進銷存對帳表】 ---
             current_month = "2026-05" # 固定的月份基準
             st.header(f"📅 本月 ({current_month}) 財務與進銷存對帳表")
             
+            # 切出當月資料
             df_this_month = df_log[df_log["月份"] == current_month].copy()
             
             if not df_this_month.empty:
-                # 安全防賴：從 df_this_month 的「價格」欄位提煉當月最高價作為計價基準
+                # 從當月歷史紀錄中提取最高價作為計價基準
                 df_prices = df_this_month.groupby("刀具編號")["價格"].max().reset_index(name="當月單價")
                 
                 # 計算進貨與領用總量
@@ -360,12 +369,22 @@ with t3:
                 
                 # 開始與庫存主表進行骨架合併
                 df_acc = df_inv[["分類", "刀具編號", "品名規格", "儲位", "目前庫存"]].copy()
+                
+                if "目前庫存" in df_acc.columns:
+                    df_acc["目前庫存"] = pd.to_numeric(df_acc["目前庫存"], errors='coerce').fillna(0).astype(int)
+                elif "currently_stock" in df_acc.columns:
+                    df_acc["目前庫存"] = pd.to_numeric(df_acc["currently_stock"], errors='coerce').fillna(0).astype(int)
+                    
                 df_acc = df_acc.merge(df_prices, on="刀具編號", how="left")
                 df_acc = df_acc.merge(df_in, on="刀具編號", how="left")
                 df_acc = df_acc.merge(df_out, on="刀具編號", how="left")
                 
-                # 欄位空值補 0
-                df_acc["當月單價"] = df_acc["當月單價"].fillna(df_inv.set_index("刀具編號")["單價"].to_dict().get("刀具編號", 0)).fillna(0)
+                # 欄位空值補齊
+                inv_price_map = df_inv.set_index("刀具編號")["單價"].to_dict()
+                df_acc["當月單價"] = df_acc.apply(
+                    lambda row: row["當月單價"] if pd.notna(row["當月單價"]) and row["當月單價"] > 0 
+                    else float(inv_price_map.get(row["刀具編號"], 0)), axis=1
+                )
                 df_acc["本月進貨量"] = df_acc["本月進貨量"].fillna(0).astype(int)
                 df_acc["本月領用量"] = df_acc["本月領用量"].fillna(0).astype(int)
                 
@@ -382,19 +401,9 @@ with t3:
                 
                 # --- Excel 精裝版導出功能 ---
                 import io
-                import openpyxl
-                from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-                from openpyxl.utils import get_column_letter
-
                 buffer = io.BytesIO()
                 with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
                     df_acc.to_excel(writer, sheet_name='月底對帳表', index=False)
-                    workbook = writer.book
-                    worksheet = writer.sheets['月底對帳表']
-                    
-                    # 這裡保持你原本高質感 Excel 的設計 (字體、框線、SUM公式)
-                    # 為了篇幅省略美化細節，但完整公式與欄位皆會保留
-                    pass
                 
                 st.download_button(
                     label="📥 下載本月精裝版對帳 Excel",
