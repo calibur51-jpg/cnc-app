@@ -541,11 +541,10 @@ with t4:
                 col_c.metric("目前系統單價", f"${int(current_price)}")
                 
                 mode = st.radio("選擇操作模式", ["進貨", "盤點"], horizontal=True)
-                
                 with st.form("t4_action_form", clear_on_submit=True):
                     qty_input = st.number_input("數量", min_value=0, value=0)
                     
-                    # 💡 亮點功能：進貨時可以直接調整單價，預設帶入目前單價
+                    # 💡 進貨時可以直接調整單價，預設帶入目前單價
                     if mode == "進貨":
                         price_input = st.number_input("本次進貨單價 (若有變動請直接修改)", min_value=0.0, value=current_price, step=10.0)
                     else:
@@ -554,32 +553,43 @@ with t4:
                     u_input = st.text_input("操作人員")
                     btn_text = "確認進貨 (累加庫存與更新單價)" if mode == "進貨" else "確認盤點 (覆寫庫存)"
                     
-                    if post_data_to_sheet(payload):
+                    if st.form_submit_button(btn_text):
+                        payload = {
+                            "action": mode,
+                            "t_id": tool_info["刀具編號"],
+                            "qty": qty_input,
+                            "new_qty": qty_input,
+                            "price": price_input,
+                            "u": u_input
+                        }
+                        if post_data_to_sheet(payload):
                             idx = df_inv[df_inv["刀具編號"] == tool_info["刀具編號"]].index[0]
-                            # 樂觀更新記憶體庫存
+                            
+                            # 1. 處理庫存記憶體更新 (防呆全包)
                             try:
-                                st.session_state.data[0].loc[idx, "目前庫存"] = (cur_qty + qty_input) if mode == "進貨" else qty_input
+                                if mode == "進貨":
+                                    st.session_state.data[0].loc[idx, "目前庫存"] = cur_qty + qty_input
+                                else:
+                                    st.session_state.data[0].loc[idx, "目前庫存"] = qty_input
                             except:
                                 try:
-                                    st.session_state.data[0].loc[idx, "currently_stock"] = (cur_qty + qty_input) if mode == "進貨" else qty_input
-                                except:
+                                    if mode == "進貨":
+                                        st.session_state.data[0].loc[idx, "currently_stock"] = cur_qty + qty_input
+                                    else:
+                                        st.session_state.data[0].loc[idx, "currently_stock"] = qty_input
+                                  except:
                                     pass
                                     
-                            # 💡 關鍵修正：用 try-except 包裹單價更新，並強制轉型，絕對不讓網頁閃退
+                            # 2. 處理單價記憶體更新 (強制安全防線，絕不閃退)
                             try:
-                                # 先嘗試轉成跟原本欄位一樣的型態（例如字串）
-                                target_col_type = type(st.session_state.data[0].loc[idx, "單價"])
-                                st.session_state.data[0].loc[idx, "單價"] = target_col_type(price_input)
+                                st.session_state.data[0].loc[idx, "單價"] = price_input
                             except:
-                                try:
-                                    st.session_state.data[0].loc[idx, "單價"] = str(price_input)
-                                except:
-                                    pass # 萬一真的不行就跳過，讓後續的 rerun 自動去 Sheets 撈最新資料
+                                pass
                             
                             st.session_state.success_msg = f"✅ {mode}成功！庫存與單價已即時同步。"
                             st.rerun()
-            else:
-                st.error("❌ 操作失敗，請檢查網路連線")
+                        else:
+                            st.error("❌ 操作失敗，請檢查網路連線")
             else:
                 st.warning("⚠️ 刀具資料加載中，請稍候...")
                 
