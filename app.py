@@ -277,20 +277,22 @@ with t3:
             # 1. 基礎資料與格式整理
             df_log["數量"] = pd.to_numeric(df_log["數量"], errors='coerce').fillna(0)
             
-            # 💡 核心優化：相容繁體中文「上午/下午」時間格式的防禦機制
-            try:
-                # 先嘗試將中文字進行格式替換（上午轉 AM，下午轉 PM）以便 Python 解析
-                time_series = df_log["時間"].astype(str).str.replace("上午", "AM", case=False).str.replace("下午", "PM", case=False)
-                df_log["時間_處理後"] = pd.to_datetime(time_series, errors='coerce')
-                df_log["月份"] = df_log["時間_處理後"].dt.strftime("%Y-%m")
-            except:
-                # 萬一真的解析失敗，啟動備用防線：直接用字串切割字眼（抓前7個字，例如 2026/05 或 2026-05）
-                df_log["月份"] = df_log["時間"].astype(str).str.strip().str.slice(0, 7).str.replace("/", "-")
+            # 💡 終極月份防禦機制：管他有沒有補0、或是上下午，一律安全拆解字串
+            def extract_clean_month(time_str):
+                try:
+                    s = str(time_str).strip().replace("/", "-")
+                    parts = s.split(" ")[0].split("-") # 抓出日期的 年, 月, 日
+                    if len(parts) >= 2:
+                        year = parts[0]
+                        month = parts[1].zfill(2) # 👈 關鍵：自動補0 (5 變 05)
+                        return f"{year}-{month}"
+                except:
+                    pass
+                return "未知月份"
+
+            df_log["月份"] = df_log["時間"].apply(extract_clean_month)
             
-            # 確保月份格式統一為 YYYY-MM (補齊可能缺失的 0，例如 2026-5 變成 2026-05)
-            df_log["月份"] = df_log["月份"].apply(lambda x: f"{x[:5]}0{x[5:]}" if pd.notna(x) and len(x) == 6 and x[4] == '-' else x)
-            
-            # 統一將 logs 的價格欄位轉為數字以供財務計算
+            # 統一將 logs 的價格欄位轉為數字
             if "價格" in df_log.columns:
                 df_log["價格"] = pd.to_numeric(df_log["價格"], errors='coerce').fillna(0)
             elif "單價" in df_log.columns:
@@ -352,7 +354,7 @@ with t3:
             
             st.divider()
 
-# --- 【💰 月底財務與進銷存對帳表（完美縮排版）】 ---
+            # --- 【💰 月底財務與進銷存對帳表】 ---
             current_month = "2026-05" 
             st.header(f"📅 本月 ({current_month}) 財務與進銷存對帳表")
             
@@ -374,12 +376,10 @@ with t3:
                 df_acc = df_acc.merge(df_in, on="刀具編號", how="left")
                 df_acc = df_acc.merge(df_out, on="刀具編號", how="left")
                 
-                # 用安全轉型把主表的單價先整理好
                 df_inv_clean = df_inv.copy()
                 df_inv_clean["庫存主表單價"] = pd.to_numeric(df_inv_clean["單價"], errors='coerce').fillna(0).astype(float)
                 inv_price_map = df_inv_clean.set_index("刀具編號")["庫存主表單價"].to_dict()
                 
-                # 💡 終極修正：直接用最安全的序列對照，完全避開 lambda 內部轉型與縮排混亂
                 df_acc["當月單價"] = pd.to_numeric(df_acc["當月單價"], errors='coerce').fillna(0).astype(float)
                 df_acc["備用單價"] = df_acc["刀具編號"].map(inv_price_map).fillna(0).astype(float)
                 df_acc["當月單價"] = df_acc.apply(lambda r: r["當月單價"] if r["當月單價"] > 0 else r["備用單價"], axis=1)
@@ -387,15 +387,13 @@ with t3:
                 df_acc["本月進貨量"] = df_acc["本月進貨量"].fillna(0).astype(int)
                 df_acc["本月領用量"] = df_acc["本月領用量"].fillna(0).astype(int)
                 
-                # 計算總金額
                 df_acc["本月新購買總金額"] = df_acc["本月進貨量"] * df_acc["當月單價"]
                 df_acc["現有庫存總價值"] = df_acc["Currently_Stock_Num"] * df_acc["當月單價"]
                 
-                # 移除畫面不需要的備用衍生欄位，保持報表乾淨
                 if "備用單價" in df_acc.columns:
                     df_acc = df_acc.drop(columns=["備用單價"])
-                if "Currently_Stock_Num" in df_acc.columns and "目前庫存" in df_acc.columns:
-                    pass 
+                if "Currently_Stock_Num" in df_acc.columns:
+                    df_acc = df_acc.drop(columns=["Currently_Stock_Num"])
                 
                 # 上方核心財務小看板
                 st.subheader("💰 本月財務對帳指標")
@@ -405,14 +403,80 @@ with t3:
                 
                 st.dataframe(df_acc, use_container_width=True)
                 
-                # --- Excel 精裝版導出功能 ---
+                # --- 🎨 Excel 精裝高質感美化導出區 ---
                 import io
+                import openpyxl
+                from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+                from openpyxl.utils import get_column_letter
+
                 buffer = io.BytesIO()
                 with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
                     df_acc.to_excel(writer, sheet_name='月底對帳表', index=False)
+                    workbook = writer.book
+                    worksheet = writer.sheets['月底對帳表']
+                    
+                    # 樣式定義
+                    font_family = "Microsoft JhengHei" # 微軟正黑體
+                    header_fill = PatternFill(start_color="1F497D", end_color="1F497D", fill_type="solid") # 深藍色表頭
+                    header_font = Font(name=font_family, size=11, bold=True, color="FFFFFF")
+                    data_font = Font(name=font_family, size=10)
+                    total_font = Font(name=font_family, size=10, bold=True)
+                    
+                    thin_border = Border(
+                        left=Side(style='thin', color='D9D9D9'),
+                        right=Side(style='thin', color='D9D9D9'),
+                        top=Side(style='thin', color='D9D9D9'),
+                        bottom=Side(style='thin', color='D9D9D9')
+                    )
+                    
+                    # 格式化表頭
+                    for col_num in range(1, len(df_acc.columns) + 1):
+                        cell = worksheet.cell(row=1, column=col_num)
+                        cell.fill = header_fill
+                        cell.font = header_font
+                        cell.alignment = Alignment(horizontal="center", vertical="center")
+                    
+                    # 格式化資料列
+                    max_row = len(df_acc) + 1
+                    for row in range(2, max_row + 1):
+                        for col in range(1, len(df_acc.columns) + 1):
+                            cell = worksheet.cell(row=row, column=col)
+                            cell.font = data_font
+                            cell.border = thin_border
+                            
+                            # 數字靠右、文字靠左
+                            if col in [1, 2, 4]: # 分類, 刀具編號, 儲位
+                                cell.alignment = Alignment(horizontal="center")
+                            elif col in [5, 6, 7, 8, 9]: # 庫存, 單價, 進貨, 領用, 金額
+                                cell.alignment = Alignment(horizontal="right")
+                                if col in [6, 10, 11]: # 金額與單價加上千分位格式
+                                    cell.number_format = '$#,##0'
+                                else:
+                                    cell.number_format = '#,##0'
+
+                    # 💡 自動加上「總計列」公式
+                    total_row = max_row + 1
+                    worksheet.cell(row=total_row, column=3, value="總計 (Total)").font = total_font
+                    worksheet.cell(row=total_row, column=3).alignment = Alignment(horizontal="right")
+                    
+                    # 用 Excel 原生 SUM 公式計算總和
+                    for col_idx, col_letter in [(5, 'E'), (7, 'G'), (8, 'H'), (9, 'I'), (10, 'J')]:
+                        if col_idx <= len(df_acc.columns):
+                            t_cell = worksheet.cell(row=total_row, column=col_idx, value=f"=SUM({col_letter}2:{col_letter}{max_row})")
+                            t_cell.font = total_font
+                            if col_idx in [6, 9, 10]:
+                                t_cell.number_format = '$#,##0'
+                            else:
+                                t_cell.number_format = '#,##0'
+                    
+                    # 自動調整欄寬防防防文字被遮擋
+                    for col in worksheet.columns:
+                        max_len = max(len(str(cell.value or '')) for cell in col)
+                        col_letter = get_column_letter(col[0].column)
+                        worksheet.column_dimensions[col_letter].width = max(max_len + 3, 12)
                 
                 st.download_button(
-                    label="📥 下載本月精裝版對帳 Excel",
+                    label="📥 下載本月精裝高質感對帳 Excel",
                     data=buffer.getvalue(),
                     file_name=f"刀具月底對帳表_{current_month}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -420,10 +484,8 @@ with t3:
             else:
                 st.info("本月份尚無任何歷史明細資料。")
                 
-    elif pw != "":
+    elif pw3 != "":
         st.warning("⚠️ 密碼錯誤")
-    else:
-        st.info("請輸入管理員密碼以存取戰情室功能")
 with t4:
     st.header("📥 進貨與盤點系統")
     pw = st.text_input("輸入管理員密碼", type="password", key="pw_t4")
