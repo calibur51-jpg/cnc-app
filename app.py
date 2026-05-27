@@ -4,6 +4,16 @@ import requests
 import time
 import io
 from PIL import Image
+import streamlit as st
+
+# 讓網頁看起來像 App 的設定
+st.markdown("""
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="刀具管理">
+""", unsafe_allow_html=True)
+
 
 # --- 【初始化】自動化 QR 參數讀取 ---
 if 'scanned_id' not in st.session_state:
