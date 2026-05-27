@@ -6,19 +6,17 @@ import io
 from PIL import Image
 import streamlit as st
 
+# 1. 這裡只留一個 set_page_config，將所有設定整合進去
 st.set_page_config(
     page_title="明星刀管", 
-    page_icon="https://raw.githubusercontent.com/calibur51-jpg/cnc-app/main/icon.png?v=3", 
+    page_icon="https://raw.githubusercontent.com/calibur51-jpg/cnc-app/main/icon.png?v=4", 
     layout="wide"
 )
 
+# 2. 定義你的圖片連結
+ICON_URL = "https://raw.githubusercontent.com/calibur51-jpg/cnc-app/main/icon.png?v=4"
 
-# 設定網頁標題與布局
-st.set_page_config(page_title="刀具管理", layout="wide")
-
-# 這是根據你的 GitHub 儲存庫自動生成的正確路徑
-ICON_URL = "https://raw.githubusercontent.com/calibur51-jpg/cnc-app/main/icon.png?v=3"
-
+# 3. 注入 PWA 設定
 st.markdown(f"""
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
