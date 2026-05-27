@@ -265,8 +265,9 @@ with t2:
         st.info("請輸入管理員密碼以存取管理功能")
 with t3:
     st.header("📊 刀具管理戰情室")
+    pw = st.text_input("輸入管理員密碼", type="password", key="pw_t3")
     
-    if st.text_input("輸入密碼", type="password", key="pw3") == "1234":
+    if pw == "1234":
         # 每次進入強制洗掉快取，確保拿到最新後台資料
         st.cache_data.clear()
         
@@ -277,14 +278,14 @@ with t3:
             # 1. 基礎資料與格式整理
             df_log["數量"] = pd.to_numeric(df_log["數量"], errors='coerce').fillna(0)
             
-            # 💡 終極月份防禦機制：管他有沒有補0、或是上下午，一律安全拆解字串
+            # 終極月份防禦機制：自動補0 (5 變 05)
             def extract_clean_month(time_str):
                 try:
                     s = str(time_str).strip().replace("/", "-")
-                    parts = s.split(" ")[0].split("-") # 抓出日期的 年, 月, 日
+                    parts = s.split(" ")[0].split("-")
                     if len(parts) >= 2:
                         year = parts[0]
-                        month = parts[1].zfill(2) # 👈 關鍵：自動補0 (5 變 05)
+                        month = parts[1].zfill(2)
                         return f"{year}-{month}"
                 except:
                     pass
@@ -326,7 +327,7 @@ with t3:
             
             st.divider()
             
-            # --- 【📜 歷史紀錄進階篩選（已徹底隱藏價格）】 ---
+            # --- 【📜 歷史紀錄進階篩選（不顯示價格）】 ---
             st.header("📜 歷史紀錄進階篩選")
             col_a, col_b, col_c = st.columns(3)
             _, _, df_set = st.session_state.data 
@@ -361,16 +362,16 @@ with t3:
             df_this_month = df_log[df_log["月份"] == current_month].copy()
             
             if not df_this_month.empty:
-                df_prices = df_this_month.groupby("刀具編號")["價格"].max().reset_index(name="當月單價")
+                df_prices = df_this_month[df_this_month["動作"] == "進貨"].groupby("刀具編號")["價格"].max().reset_index(name="當月單價")
                 df_in = df_this_month[df_this_month["動作"] == "進貨"].groupby("刀具編號")["數量"].sum().reset_index(name="本月進貨量")
                 df_out = df_this_month[df_this_month["動作"] == "領用"].groupby("刀具編號")["數量"].sum().reset_index(name="本月領用量")
                 
                 df_acc = df_inv[["分類", "刀具編號", "品名規格", "儲位", "目前庫存"]].copy()
                 
                 if "目前庫存" in df_acc.columns:
-                    df_acc["Currently_Stock_Num"] = pd.to_numeric(df_acc["目前庫存"], errors='coerce').fillna(0).astype(int)
-                else:
-                    df_acc["Currently_Stock_Num"] = pd.to_numeric(df_acc["currently_stock"], errors='coerce').fillna(0).astype(int)
+                    df_acc["目前庫存"] = pd.to_numeric(df_acc["目前庫存"], errors='coerce').fillna(0).astype(int)
+                elif "currently_stock" in df_acc.columns:
+                    df_acc["目前庫存"] = pd.to_numeric(df_acc["currently_stock"], errors='coerce').fillna(0).astype(int)
                     
                 df_acc = df_acc.merge(df_prices, on="刀具編號", how="left")
                 df_acc = df_acc.merge(df_in, on="刀具編號", how="left")
@@ -388,12 +389,15 @@ with t3:
                 df_acc["本月領用量"] = df_acc["本月領用量"].fillna(0).astype(int)
                 
                 df_acc["本月新購買總金額"] = df_acc["本月進貨量"] * df_acc["當月單價"]
-                df_acc["現有庫存總價值"] = df_acc["Currently_Stock_Num"] * df_acc["當月單價"]
+                df_acc["現有庫存總價值"] = df_acc["目前庫存"] * df_acc["當月單價"]
                 
                 if "備用單價" in df_acc.columns:
                     df_acc = df_acc.drop(columns=["備用單價"])
-                if "Currently_Stock_Num" in df_acc.columns:
-                    df_acc = df_acc.drop(columns=["Currently_Stock_Num"])
+                
+                # 重新排列欄位順序，讓報表更直覺
+                report_cols = ["分類", "刀具編號", "品名規格", "儲位", "目前庫存", "當月單價", "本月進貨量", "本月領用量", "本月新購買總金額", "現有庫存總價值"]
+                report_cols = [c for c in report_cols if c in df_acc.columns]
+                df_acc = df_acc[report_cols]
                 
                 # 上方核心財務小看板
                 st.subheader("💰 本月財務對帳指標")
@@ -411,13 +415,15 @@ with t3:
 
                 buffer = io.BytesIO()
                 with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                    # 💡 核心優化：index=False 徹底移除最左邊醜醜的 0, 1, 2 流水號
                     df_acc.to_excel(writer, sheet_name='月底對帳表', index=False)
                     workbook = writer.book
                     worksheet = writer.sheets['月底對帳表']
                     
-                    # 樣式定義
-                    font_family = "Microsoft JhengHei" # 微軟正黑體
-                    header_fill = PatternFill(start_color="1F497D", end_color="1F497D", fill_type="solid") # 深藍色表頭
+                    font_family = "Microsoft JhengHei" 
+                    header_fill = PatternFill(start_color="1F497D", end_color="1F497D", fill_type="solid") # 專業高階深藍
+                    total_fill = PatternFill(start_color="DCE6F1", end_color="DCE6F1", fill_type="solid")  # 總計列淡藍色
+                    
                     header_font = Font(name=font_family, size=11, bold=True, color="FFFFFF")
                     data_font = Font(name=font_family, size=10)
                     total_font = Font(name=font_family, size=10, bold=True)
@@ -434,7 +440,7 @@ with t3:
                         cell = worksheet.cell(row=1, column=col_num)
                         cell.fill = header_fill
                         cell.font = header_font
-                        cell.alignment = Alignment(horizontal="center", vertical="center")
+                        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
                     
                     # 格式化資料列
                     max_row = len(df_acc) + 1
@@ -444,36 +450,48 @@ with t3:
                             cell.font = data_font
                             cell.border = thin_border
                             
-                            # 數字靠右、文字靠左
-                            if col in [1, 2, 4]: # 分類, 刀具編號, 儲位
+                            # 1:分類, 2:刀具編號, 4:儲位 -> 置中
+                            if col in [1, 2, 4]:
                                 cell.alignment = Alignment(horizontal="center")
-                            elif col in [5, 6, 7, 8, 9]: # 庫存, 單價, 進貨, 領用, 金額
+                            # 3:品名規格 -> 靠左
+                            elif col == 3:
+                                cell.alignment = Alignment(horizontal="left")
+                            # 5:目前庫存, 6:當月單價, 7:本月進貨, 8:本月領用, 9:購買金額, 10:庫存價值 -> 靠右
+                            else:
                                 cell.alignment = Alignment(horizontal="right")
-                                if col in [6, 10, 11]: # 金額與單價加上千分位格式
+                                # 單價(6欄)、新購買金額(9欄)、庫存價值(10欄) 加上千分位與 $ 符號
+                                if col in [6, 9, 10]:
                                     cell.number_format = '$#,##0'
                                 else:
                                     cell.number_format = '#,##0'
 
-                    # 💡 自動加上「總計列」公式
+                    # 💡 精裝版總計列
                     total_row = max_row + 1
+                    for col_num in range(1, len(df_acc.columns) + 1):
+                        t_cell = worksheet.cell(row=total_row, column=col_num)
+                        t_cell.fill = total_fill
+                        t_cell.border = thin_border
+                    
                     worksheet.cell(row=total_row, column=3, value="總計 (Total)").font = total_font
                     worksheet.cell(row=total_row, column=3).alignment = Alignment(horizontal="right")
                     
-                    # 用 Excel 原生 SUM 公式計算總和
-                    for col_idx, col_letter in [(5, 'E'), (7, 'G'), (8, 'H'), (9, 'I'), (10, 'J')]:
-                        if col_idx <= len(df_acc.columns):
-                            t_cell = worksheet.cell(row=total_row, column=col_idx, value=f"=SUM({col_letter}2:{col_letter}{max_row})")
-                            t_cell.font = total_font
-                            if col_idx in [6, 9, 10]:
-                                t_cell.number_format = '$#,##0'
-                            else:
-                                t_cell.number_format = '#,##0'
+                    # 用 Excel 原生公式進行對齊欄位加總
+                    # E:目前庫存(5), G:本月進貨(7), H:本月領用(8), I:新購買金額(9), J:現有庫存價值(10)
+                    sum_targets = [(5, 'E'), (7, 'G'), (8, 'H'), (9, 'I'), (10, 'J')]
+                    for col_idx, col_letter in sum_targets:
+                        t_cell = worksheet.cell(row=total_row, column=col_idx, value=f"=SUM({col_letter}2:{col_letter}{max_row})")
+                        t_cell.font = total_font
+                        t_cell.alignment = Alignment(horizontal="right")
+                        if col_idx in [9, 10]:
+                            t_cell.number_format = '$#,##0'
+                        else:
+                            t_cell.number_format = '#,##0'
                     
-                    # 自動調整欄寬防防防文字被遮擋
+                    # 自動調整欄寬
                     for col in worksheet.columns:
                         max_len = max(len(str(cell.value or '')) for cell in col)
                         col_letter = get_column_letter(col[0].column)
-                        worksheet.column_dimensions[col_letter].width = max(max_len + 3, 12)
+                        worksheet.column_dimensions[col_letter].width = max(max_len + 4, 13)
                 
                 st.download_button(
                     label="📥 下載本月精裝高質感對帳 Excel",
@@ -486,6 +504,8 @@ with t3:
                 
     elif pw != "":
         st.warning("⚠️ 密碼錯誤")
+    else:
+        st.info("請輸入管理員密碼以存取戰情室功能")
 with t4:
     st.header("📥 進貨與盤點系統")
     pw = st.text_input("輸入管理員密碼", type="password", key="pw_t4")
