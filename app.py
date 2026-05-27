@@ -22,7 +22,8 @@ SET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTo2vi_36qF4mzPkxzNOJ
 WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbyZ6-S7x4fp4iCQbdpClMlXQFUxQ9q036XFtCZxuObS2mqaF7wv-U26QOJhqGsvxHyskQ/exec"
 
 # --- 2. 函數區 ---
-@st.cache_data(ttl=5)
+# 💡 修正 1：加上 ttl=5（快取5秒自動過期），並指定 show_spinner=False 讓重整更流暢
+@st.cache_data(ttl=5, show_spinner=False)
 def get_data():
     try:
         ts = time.time()
@@ -41,15 +42,24 @@ def post_data_to_sheet(payload):
     except:
         return False
 
-# --- 3. 介面區 ---
-st.title("明星精密刀具管理系統")
+# --- 3. 畫面開頭與天王老子同步按鈕 ---
+st.title("🛠️ CNC 刀具庫存管理系統")
 
-if 'data' not in st.session_state:
-    st.session_state.data = get_data()
-
-if st.button("🔄 立即同步最新庫存"):
-    st.session_state.data = get_data()
+# 💡 修正 2：在最頂端直接提供手動重擊鈕，強制洗掉快取與 session 記憶
+if st.button("🔄 立即同步雲端試算表 (當現場資料卡住時點擊)"):
+    st.cache_data.clear()              # 清除所有快取
+    get_data.clear()                   # 專門強制清除 get_data 函式的快取
+    if "data" in st.session_state:
+        del st.session_state.data      # 徹底刪除記憶體舊骨架
+    st.success("✅ 已成功抹除舊記憶！正在重新連線 Google Sheets...")
     st.rerun()
+
+st.divider()
+
+# --- 4. 資料安全載入流 ---
+# 💡 修正 3：確保載入邏輯能正確連動重新載入
+if "data" not in st.session_state:
+    st.session_state.data = get_data()
 
 df_inv, df_log, df_set = st.session_state.data
 
