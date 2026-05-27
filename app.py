@@ -554,24 +554,27 @@ with t4:
                     u_input = st.text_input("操作人員")
                     btn_text = "確認進貨 (累加庫存與更新單價)" if mode == "進貨" else "確認盤點 (覆寫庫存)"
                     
-                    if st.form_submit_button(btn_text):
-                        payload = {
-                            "action": mode,
-                            "t_id": tool_info["刀具編號"],
-                            "qty": qty_input,
-                            "new_qty": qty_input,
-                            "price": price_input, # 💡 傳送新單價給後台
-                            "u": u_input
-                        }
-                        if post_data_to_sheet(payload):
+                    if post_data_to_sheet(payload):
                             idx = df_inv[df_inv["刀具編號"] == tool_info["刀具編號"]].index[0]
                             # 樂觀更新記憶體庫存
                             try:
                                 st.session_state.data[0].loc[idx, "目前庫存"] = (cur_qty + qty_input) if mode == "進貨" else qty_input
                             except:
-                                st.session_state.data[0].loc[idx, "currently_stock"] = (cur_qty + qty_input) if mode == "進貨" else qty_input
-                            # 💡 樂觀更新記憶體單價
-                            st.session_state.data[0].loc[idx, "單價"] = price_input
+                                try:
+                                    st.session_state.data[0].loc[idx, "currently_stock"] = (cur_qty + qty_input) if mode == "進貨" else qty_input
+                                except:
+                                    pass
+                                    
+                            # 💡 關鍵修正：用 try-except 包裹單價更新，並強制轉型，絕對不讓網頁閃退
+                            try:
+                                # 先嘗試轉成跟原本欄位一樣的型態（例如字串）
+                                target_col_type = type(st.session_state.data[0].loc[idx, "單價"])
+                                st.session_state.data[0].loc[idx, "單價"] = target_col_type(price_input)
+                            except:
+                                try:
+                                    st.session_state.data[0].loc[idx, "單價"] = str(price_input)
+                                except:
+                                    pass # 萬一真的不行就跳過，讓後續的 rerun 自動去 Sheets 撈最新資料
                             
                             st.session_state.success_msg = f"✅ {mode}成功！庫存與單價已即時同步。"
                             st.rerun()
