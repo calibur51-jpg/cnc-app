@@ -578,8 +578,8 @@ with t4:
                             
                             st.session_state.success_msg = f"✅ {mode}成功！庫存與單價已即時同步。"
                             st.rerun()
-                        else:
-                            st.error("❌ 操作失敗，請檢查網路連線")
+            else:
+                st.error("❌ 操作失敗，請檢查網路連線")
             else:
                 st.warning("⚠️ 刀具資料加載中，請稍候...")
                 
