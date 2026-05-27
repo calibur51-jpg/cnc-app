@@ -352,60 +352,53 @@ with t3:
             
             st.divider()
 
-            # --- 【💰 月底財務與進銷存對帳表】 ---
-            current_month = "2026-05" # 固定的月份基準
+# --- 【💰 月底財務與進銷存對帳表（完美縮排版）】 ---
+            current_month = "2026-05" 
             st.header(f"📅 本月 ({current_month}) 財務與進銷存對帳表")
             
-            # 切出當月資料
             df_this_month = df_log[df_log["月份"] == current_month].copy()
             
             if not df_this_month.empty:
-                # 從當月歷史紀錄中提取最高價作為計價基準
                 df_prices = df_this_month.groupby("刀具編號")["價格"].max().reset_index(name="當月單價")
-                
-                # 計算進貨與領用總量
                 df_in = df_this_month[df_this_month["動作"] == "進貨"].groupby("刀具編號")["數量"].sum().reset_index(name="本月進貨量")
                 df_out = df_this_month[df_this_month["動作"] == "領用"].groupby("刀具編號")["數量"].sum().reset_index(name="本月領用量")
                 
-                # 開始與庫存主表進行骨架合併
                 df_acc = df_inv[["分類", "刀具編號", "品名規格", "儲位", "目前庫存"]].copy()
                 
                 if "目前庫存" in df_acc.columns:
-                    df_acc["目前庫存"] = pd.to_numeric(df_acc["目前庫存"], errors='coerce').fillna(0).astype(int)
-                elif "currently_stock" in df_acc.columns:
-                    df_acc["目前庫存"] = pd.to_numeric(df_acc["currently_stock"], errors='coerce').fillna(0).astype(int)
+                    df_acc["Currently_Stock_Num"] = pd.to_numeric(df_acc["目前庫存"], errors='coerce').fillna(0).astype(int)
+                else:
+                    df_acc["Currently_Stock_Num"] = pd.to_numeric(df_acc["currently_stock"], errors='coerce').fillna(0).astype(int)
                     
                 df_acc = df_acc.merge(df_prices, on="刀具編號", how="left")
                 df_acc = df_acc.merge(df_in, on="刀具編號", how="left")
                 df_acc = df_acc.merge(df_out, on="刀具編號", how="left")
                 
-# 💡 終極防禦：用更安全的方式處理單價空值對照，防止文字轉 float 噴錯
-                inv_price_map = df_inv.set_index("刀具編號")["單價"].to_dict()
+                # 用安全轉型把主表的單價先整理好
+                df_inv_clean = df_inv.copy()
+                df_inv_clean["庫存主表單價"] = pd.to_numeric(df_inv_clean["單價"], errors='coerce').fillna(0).astype(float)
+                inv_price_map = df_inv_clean.set_index("刀具編號")["庫存主表單價"].to_dict()
                 
-                def safe_get_price(row):
-                    # 如果當月有進貨單價且大於 0，就優先使用
-                    if pd.notna(row["當月單價"]) and row["當月單價"] > 0:
-                        return row["當月單價"]
-                    
-                    # 否則去抓主表的單價，並用 pd.to_numeric 強制轉型，萬一出錯就給 0
-                    raw_p = inv_price_map.get(row["刀具編號"], 0)
-                    try:
-                        return float(pd.Series(raw_p).to_numeric(errors='coerce').fillna(0).iloc[0])
-                    except:
-                        return 0.0
-
-                df_acc["當月單價"] = df_acc.apply(safe_get_price, axis=1)
-                    lambda row: row["當月單價"] if pd.notna(row["當月單價"]) and row["當月單價"] > 0 
-                    else float(inv_price_map.get(row["刀具編號"], 0)), axis=1
-                )
+                # 💡 終極修正：直接用最安全的序列對照，完全避開 lambda 內部轉型與縮排混亂
+                df_acc["當月單價"] = pd.to_numeric(df_acc["當月單價"], errors='coerce').fillna(0).astype(float)
+                df_acc["備用單價"] = df_acc["刀具編號"].map(inv_price_map).fillna(0).astype(float)
+                df_acc["當月單價"] = df_acc.apply(lambda r: r["當月單價"] if r["當月單價"] > 0 else r["備用單價"], axis=1)
+                
                 df_acc["本月進貨量"] = df_acc["本月進貨量"].fillna(0).astype(int)
                 df_acc["本月領用量"] = df_acc["本月領用量"].fillna(0).astype(int)
                 
                 # 計算總金額
                 df_acc["本月新購買總金額"] = df_acc["本月進貨量"] * df_acc["當月單價"]
-                df_acc["現有庫存總價值"] = df_acc["目前庫存"] * df_acc["當月單價"]
+                df_acc["現有庫存總價值"] = df_acc["Currently_Stock_Num"] * df_acc["當月單價"]
+                
+                # 移除畫面不需要的備用衍生欄位，保持報表乾淨
+                if "備用單價" in df_acc.columns:
+                    df_acc = df_acc.drop(columns=["備用單價"])
+                if "Currently_Stock_Num" in df_acc.columns and "目前庫存" in df_acc.columns:
+                    pass 
                 
                 # 上方核心財務小看板
+                st.subheader("💰 本月財務對帳指標")
                 c_f1, c_f2 = st.columns(2)
                 c_f1.metric("📊 本月新購買刀總金額", f"${int(df_acc['本月新購買總金額'].sum()):,}")
                 c_f2.metric("💰 廠內現有庫存總價值", f"${int(df_acc['現有庫存總價值'].sum()):,}")
