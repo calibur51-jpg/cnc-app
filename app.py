@@ -484,7 +484,7 @@ with t3:
             else:
                 st.info("本月份尚無任何歷史明細資料。")
                 
-    elif pw3 != "":
+    elif pw != "":
         st.warning("⚠️ 密碼錯誤")
 with t4:
     st.header("📥 進貨與盤點系統")
