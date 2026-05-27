@@ -10,7 +10,7 @@ import streamlit as st
 st.set_page_config(page_title="刀具管理", layout="wide")
 
 # 這是根據你的 GitHub 儲存庫自動生成的正確路徑
-ICON_URL = "https://raw.githubusercontent.com/calibur51-jpg/cnc-app/main/icon.png"
+ICON_URL = "https://raw.githubusercontent.com/calibur51-jpg/cnc-app/main/icon.png?v=2"
 
 st.markdown(f"""
     <meta name="mobile-web-app-capable" content="yes">
