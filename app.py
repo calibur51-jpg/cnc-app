@@ -5,6 +5,7 @@ import time
 import io
 from PIL import Image
 import streamlit as st
+import datetime
 
 # 1. 這裡處理電腦瀏覽器分頁的小圖示 (使用本地路徑)
 st.set_page_config(
@@ -378,7 +379,7 @@ with t3:
             st.divider()
 
             # --- 【💰 月底財務與進銷存對帳表】 ---
-            current_month = "2026-05" 
+            current_month = datetime.datetime.now().strftime("%Y-%m")
             st.header(f"📅 本月 ({current_month}) 財務與進銷存對帳表")
             
             df_this_month = df_log[df_log["月份"] == current_month].copy()
