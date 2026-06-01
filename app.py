@@ -295,7 +295,7 @@ with t3:
         _, df_log, _ = st.session_state.data
         df_inv = st.session_state.data[0]
         
-        # 核心：精裝 Excel 格式化函式 (完整保留)
+        # 1. 精裝 Excel 格式化函式
         def get_styled_excel(df, title):
             import io
             from openpyxl import Workbook
@@ -312,24 +312,27 @@ with t3:
             return buffer
 
         if not df_log.empty:
-            # 處理月份與價格邏輯
-            df_log["數量"] = pd.to_numeric(df_log["數量"], errors='coerce').fillna(0)
+            # --- 【關鍵修復】：強效處理日期格式，解決 None 與上午/下午問題 ---
+            df_log["時間"] = df_log["時間"].astype(str).str.replace("下午", " PM").str.replace("上午", " AM")
             df_log["時間"] = pd.to_datetime(df_log["時間"], errors='coerce')
-            df_log["月份"] = df_log["時間"].dt.strftime("%Y-%m")
+            # 確保月份欄位不會因為時間錯誤變成 None
+            df_log["月份"] = df_log["時間"].dt.strftime("%Y-%m").fillna("未分類")
+            df_log["數量"] = pd.to_numeric(df_log["數量"], errors='coerce').fillna(0)
             df_log["價格"] = pd.to_numeric(df_log["價格"], errors='coerce').fillna(0)
+            
             current_month = datetime.datetime.now().strftime("%Y-%m")
 
-            # --- 1. 本月對帳收折 (保留完整財務邏輯) ---
+            # --- 1. 本月對帳收折 ---
             with st.expander("📅 本月財務與進銷存對帳", expanded=True):
                 df_this_month = df_log[df_log["月份"] == current_month].copy()
                 if not df_this_month.empty:
-                    # 進貨與領用量計算
+                    # 計算進貨與領用量
                     df_in = df_this_month[df_this_month["動作"] == "進貨"].groupby("刀具編號")["數量"].sum().reset_index(name="本月進貨量")
                     df_out = df_this_month[df_this_month["動作"] == "領用"].groupby("刀具編號")["數量"].sum().reset_index(name="本月領用量")
                     
                     df_acc = df_inv[["分類", "刀具編號", "品名規格", "儲位", "目前庫存"]].merge(df_in, on="刀具編號", how="left").merge(df_out, on="刀具編號", how="left").fillna(0)
                     
-                    # 完整復刻：備用單價映射與財務計算
+                    # 復刻：備用單價映射與財務計算
                     inv_price_map = pd.to_numeric(df_inv.set_index("刀具編號")["單價"], errors='coerce').fillna(0).to_dict()
                     df_acc["當月單價"] = df_acc["刀具編號"].map(inv_price_map).fillna(0)
                     df_acc["本月新購買總金額"] = df_acc["本月進貨量"] * df_acc["當月單價"]
@@ -341,9 +344,8 @@ with t3:
                 else:
                     st.info(f"本月 ({current_month}) 目前尚無資料")
 
-            # --- 2. 歷史總計分析 (包含人員/原因圖表與篩選) ---
+            # --- 2. 歷史總計分析 ---
             with st.expander("📊 歷史總計與篩選"):
-                # 讓師傅選擇看「全時段」還是「當月」
                 view_mode = st.radio("資料範圍選擇:", ["全時段總計", "僅本月"], horizontal=True)
                 df_view = df_log if view_mode == "全時段總計" else df_log[df_log["月份"] == current_month].copy()
                 df_usage = df_view[df_view["動作"] == "領用"].copy()
@@ -352,7 +354,6 @@ with t3:
                 with c1: st.markdown("**人員領用排行**"); st.bar_chart(df_usage.groupby("經辦人員")["數量"].sum())
                 with c2: st.markdown("**原因分析**"); st.bar_chart(df_usage.groupby("原因類型")["數量"].sum())
                 
-                # 歷史紀錄搜尋
                 st.subheader("📜 歷史紀錄進階篩選")
                 search_wo = st.text_input("🔍 搜尋工單號碼:")
                 if search_wo: df_view = df_view[df_view["工單號碼"].astype(str).str.contains(search_wo, case=False, na=False)]
