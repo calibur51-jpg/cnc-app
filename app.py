@@ -294,90 +294,65 @@ with t3:
         st.cache_data.clear()
         _, df_log, _ = st.session_state.data
         df_inv = st.session_state.data[0]
+        _, _, df_set = st.session_state.data 
         
-        # 引用精裝版 Excel 所需的套件
+        # 引用所需套件
         import io
         import openpyxl
         from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
         from openpyxl.utils import get_column_letter
 
-        # 定義精裝版格式化函式
-        def get_styled_excel(df, title):
-            buffer = io.BytesIO()
-            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-                df.to_excel(writer, sheet_name=title, index=False)
-                workbook = writer.book
-                worksheet = writer.sheets[title]
-                
-                # 樣式定義
-                header_fill = PatternFill(start_color="1F497D", end_color="1F497D", fill_type="solid")
-                header_font = Font(name="Microsoft JhengHei", size=11, bold=True, color="FFFFFF")
-                data_font = Font(name="Microsoft JhengHei", size=10)
-                thin_border = Border(left=Side(style='thin', color='D9D9D9'), right=Side(style='thin', color='D9D9D9'), top=Side(style='thin', color='D9D9D9'), bottom=Side(style='thin', color='D9D9D9'))
-
-                # 格式化
-                for col_num in range(1, len(df.columns) + 1):
-                    cell = worksheet.cell(row=1, column=col_num)
-                    cell.fill, cell.font, cell.alignment = header_fill, header_font, Alignment(horizontal="center")
-                
-                for row in range(2, len(df) + 2):
-                    for col in range(1, len(df.columns) + 1):
-                        cell = worksheet.cell(row=row, column=col)
-                        cell.font, cell.border = data_font, thin_border
-                
-                # 自動調整欄寬
-                for col in worksheet.columns:
-                    col_letter = get_column_letter(col[0].column)
-                    worksheet.column_dimensions[col_letter].width = 15
-            return buffer
-
         if not df_log.empty:
+            # 完整還原：基礎資料整理與月份處理
             df_log["數量"] = pd.to_numeric(df_log["數量"], errors='coerce').fillna(0)
             df_log["時間"] = pd.to_datetime(df_log["時間"], errors='coerce')
             df_log["月份"] = df_log["時間"].dt.strftime("%Y-%m")
-            df_usage = df_log[df_log["動作"] == "領用"].copy()
+            
+            # 完整還原：價格欄位處理
+            if "價格" in df_log.columns: df_log["價格"] = pd.to_numeric(df_log["價格"], errors='coerce').fillna(0)
+            elif "單價" in df_log.columns: df_log["價格"] = pd.to_numeric(df_log["單價"], errors='coerce').fillna(0)
+            else: df_log["價格"] = 0.0
 
-            # --- 1. 本月對帳區 ---
-            with st.expander("📅 本月財務與對帳", expanded=True):
+            # --- 1. 本月對帳收折 (完整還原版) ---
+            with st.expander("📅 本月財務與進銷存對帳表", expanded=True):
                 current_month = datetime.datetime.now().strftime("%Y-%m")
                 df_this_month = df_log[df_log["月份"] == current_month].copy()
                 
                 if not df_this_month.empty:
-                    # 計算邏輯
+                    df_prices = df_this_month[df_this_month["動作"] == "進貨"].groupby("刀具編號")["價格"].max().reset_index(name="當月單價")
                     df_in = df_this_month[df_this_month["動作"] == "進貨"].groupby("刀具編號")["數量"].sum().reset_index(name="本月進貨量")
                     df_out = df_this_month[df_this_month["動作"] == "領用"].groupby("刀具編號")["數量"].sum().reset_index(name="本月領用量")
+                    
                     df_acc = df_inv[["分類", "刀具編號", "品名規格", "儲位", "目前庫存"]].copy()
-                    df_acc = df_acc.merge(df_in, on="刀具編號", how="left").merge(df_out, on="刀具編號", how="left")
-                    df_acc = df_acc.fillna(0)
+                    df_acc = df_acc.merge(df_prices, on="刀具編號", how="left").merge(df_in, on="刀具編號", how="left").merge(df_out, on="刀具編號", how="left")
                     
+                    # 完整還原：備用單價計算邏輯
+                    inv_price_map = pd.to_numeric(df_inv.set_index("刀具編號")["單價"], errors='coerce').fillna(0).to_dict()
+                    df_acc["當月單價"] = pd.to_numeric(df_acc["當月單價"], errors='coerce').fillna(0)
+                    df_acc["備用單價"] = df_acc["刀具編號"].map(inv_price_map).fillna(0)
+                    df_acc["當月單價"] = df_acc.apply(lambda r: r["當月單價"] if r["當月單價"] > 0 else r["備用單價"], axis=1)
+                    
+                    df_acc["本月新購買總金額"] = df_acc["本月進貨量"].fillna(0) * df_acc["當月單價"]
+                    df_acc["現有庫存總價值"] = df_acc["目前庫存"] * df_acc["當月單價"]
+                    
+                    st.metric("本月新購總額", f"${int(df_acc['本月新購買總金額'].sum()):,}")
                     st.dataframe(df_acc, use_container_width=True)
-                    
-                    # 下載精裝 Excel
-                    st.download_button(
-                        label="📥 下載本月精裝對帳表",
-                        data=get_styled_excel(df_acc, "對帳表").getvalue(),
-                        file_name=f"對帳表_{current_month}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    )
                 else:
                     st.info("本月份尚無資料")
 
-            # --- 2. 歷史總計區 ---
+            # --- 2. 歷史總計分析收折 (完整還原版) ---
             with st.expander("📊 歷史總計與分析"):
-                col_p1, col_p2 = st.columns(2)
-                with col_p1: 
-                    st.markdown("**人員領用排行**")
-                    st.bar_chart(df_usage.groupby("經辦人員")["數量"].sum())
-                with col_p2: 
-                    st.markdown("**原因分析**")
-                    st.bar_chart(df_usage.groupby("原因類型")["數量"].sum())
+                df_usage = df_log[df_log["動作"] == "領用"].copy()
+                c1, c2 = st.columns(2)
+                with c1: st.markdown("**人員領用排行**"); st.bar_chart(df_usage.groupby("經辦人員")["數量"].sum())
+                with c2: st.markdown("**原因分析**"); st.bar_chart(df_usage.groupby("原因類型")["數量"].sum())
                 
-                st.download_button(
-                    label="📥 下載完整歷史數據 (精裝版)",
-                    data=get_styled_excel(df_log, "歷史紀錄").getvalue(),
-                    file_name="歷史紀錄總表.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
+                # 完整還原：進階篩選區
+                st.header("📜 歷史紀錄篩選")
+                search_wo = st.text_input("🔍 搜尋工單號碼:")
+                df_filtered = df_log.copy()
+                if search_wo: df_filtered = df_filtered[df_filtered["工單號碼"].astype(str).str.contains(search_wo, case=False, na=False)]
+                st.dataframe(df_filtered.sort_values(by="時間", ascending=False), use_container_width=True)
 
     elif pw != "":
         st.warning("⚠️ 密碼錯誤")
