@@ -371,29 +371,21 @@ with t4:
         st.success("✅ 驗證成功")
         st.divider()
         
-        # 判斷庫存欄位名稱 (統一處理)
-        stock_col = "目前庫存" if "目前庫存" in df_inv.columns else "currently_stock"
+        # 判斷庫存欄位名稱
+        stock_col = "currently_stock" if "currently_stock" in df_inv.columns else "目前庫存"
         low_stock_df = df_inv[df_inv[stock_col] <= df_inv["安全庫存"]]
         
         if not low_stock_df.empty:
             st.warning(f"🚨 注意：共有 {len(low_stock_df)} 項刀具低於安全庫存！")
-            with st.expander("📦 查看並產生叫刀清單", expanded=True):
+            with st.expander("📦 查看低庫存清單", expanded=True):
                 st.dataframe(low_stock_df[["品名規格", stock_col, "安全庫存", "儲位"]], use_container_width=True)
                 
-                st.divider()
-                st.subheader("📋 快速產生傳給廠商的清單")
-                
-                # 自動產生文字內容
-                order_content = "廠商您好，以下是本次補充刀具清單：\n"
-                order_content += "------------------------------\n"
+            # --- 新增：叫刀清單產生器 ---
+            with st.expander("📋 產生叫刀清單 (快速複製給廠商)"):
+                order_text = "廠商您好，請協助補充以下刀具：\n\n"
                 for _, row in low_stock_df.iterrows():
-                    qty_needed = int(row["安全庫存"]) - int(row[stock_col])
-                    order_content += f"品名規格：{row['品名規格']} \n建議數量：{qty_needed} 個\n\n"
-                order_content += "------------------------------\n煩請報價，謝謝！"
-                
-                # 顯示文字框讓使用者複製
-                st.text_area("請直接複製以下內容傳給廠商：", value=order_content, height=200)
-                
+                    order_text += f"【{row['品名規格']}】\n需求數量：____ 個\n\n"
+                st.text_area("複製以下內容傳給廠商：", order_text, height=300)
         else:
             st.success("✅ 所有庫存皆在安全水位以上，運作正常。")
         
@@ -423,8 +415,12 @@ with t4:
             
             if not matched_df.empty:
                 tool_info = matched_df.iloc[0]
-                cur_qty = int(tool_info[stock_col])
+                try:
+                    cur_qty = int(tool_info["目前庫存"])
+                except:
+                    cur_qty = int(tool_info["currently_stock"])
                 safe_qty = int(tool_info["安全庫存"])
+                
                 try:
                     current_price = float(tool_info["單價"])
                 except:
@@ -457,16 +453,40 @@ with t4:
                             "u": u_input
                         }
                         if post_data_to_sheet(payload):
+                            idx = df_inv[df_inv["刀具編號"] == tool_info["刀具編號"]].index[0]
+                            
+                            # 1. 處理庫存記憶體更新 (完全還原你的原始邏輯)
+                            try:
+                                if mode == "進貨":
+                                    st.session_state.data[0].loc[idx, "目前庫存"] = cur_qty + qty_input
+                                else:
+                                    st.session_state.data[0].loc[idx, "currently_stock"] = qty_input
+                            except:
+                                try:
+                                    if mode == "進貨":
+                                        st.session_state.data[0].loc[idx, "currently_stock"] = cur_qty + qty_input
+                                    else:
+                                        st.session_state.data[0].loc[idx, "currently_stock"] = qty_input
+                                except:
+                                    pass
+                                    
+                            # 2. 處理單價記憶體更新
+                            try:
+                                st.session_state.data[0].loc[idx, "單價"] = price_input
+                            except:
+                                pass
+                            
                             st.cache_data.clear() 
                             st.session_state.success_msg = f"✅ {mode}成功！庫存與單價已即時同步。"
                             st.rerun()
                         else:
                             st.error("❌ 操作失敗，請檢查網路連線")
-                            
+            else:
+                st.warning("⚠️ 刀具資料加載中，請稍候...")
+                
         if "success_msg" in st.session_state:
             st.success(st.session_state.success_msg)
             del st.session_state.success_msg
-            
     elif pw != "":
         st.warning("⚠️ 密碼錯誤")
     else:
