@@ -91,34 +91,48 @@ with t1:
     st.header("🔪 刀具領用")
     _, df_log, df_set = st.session_state.data
     
-    # --- 【已移除 QR 掃描區塊】 ---
-
-    # --- 3. 篩選與選擇邏輯 ---
+    # 1. 處理掃描邏輯：算出預設的索引 (Index)
+    default_cat_idx = 0
+    default_tool_idx = 0
+    
     if "scanned_id" in st.session_state and st.session_state.scanned_id is not None:
         match = df_inv[df_inv["刀具編號"].astype(str) == st.session_state.scanned_id]
         if not match.empty:
-            st.session_state["t1_cat"] = match.iloc[0]["分類"]
-            st.session_state["t1_tool"] = match.iloc[0]["品名規格"]
-            st.session_state.scanned_id = None # 清除狀態
+            cat_name = match.iloc[0]["分類"]
+            tool_name = match.iloc[0]["品名規格"]
+            
+            # 計算分類的索引
+            all_cats = ["全部"] + df_inv["分類"].unique().tolist()
+            if cat_name in all_cats:
+                default_cat_idx = all_cats.index(cat_name)
+            
+            # 注意：這裡我們先不強制鎖定，等下交給 selectbox 的 index 控制
+            st.session_state.pending_tool = tool_name
         else:
             st.error(f"❌ 找不到編號 {st.session_state.scanned_id} 的刀具")
-            st.session_state.scanned_id = None
-
-    cats = ["全部"] + df_inv["分類"].unique().tolist()
-    cat_sel = st.selectbox("分類", cats, key="t1_cat")
+        
+        st.session_state.scanned_id = None # 清除狀態，讓下次掃描才觸發，且不再鎖定
     
+    # 2. 顯示分類選擇器
+    all_cats = ["全部"] + df_inv["分類"].unique().tolist()
+    cat_sel = st.selectbox("分類", all_cats, index=default_cat_idx, key="t1_cat")
+    
+    # 3. 篩選刀具清單
     df_f = df_inv if cat_sel == "全部" else df_inv[df_inv["分類"] == cat_sel]
     t_list = df_f["品名規格"].tolist()
     
-    if st.session_state.get("t1_tool") not in t_list:
-        st.session_state["t1_tool"] = t_list[0] if t_list else None
-    
-    t_name = st.selectbox("選擇領用刀具", t_list, key="t1_tool")
+    # 計算刀具索引 (如果有 pending_tool 且在清單中)
+    tool_idx = 0
+    if "pending_tool" in st.session_state:
+        if st.session_state.pending_tool in t_list:
+            tool_idx = t_list.index(st.session_state.pending_tool)
+        del st.session_state.pending_tool # 用完即刪
+        
+    # 4. 顯示刀具選擇器
+    t_name = st.selectbox("選擇領用刀具", t_list, index=tool_idx, key="t1_tool")
 
+    # 5. 顯示庫存與資訊
     cur_stock = 0
-    idx = 0
-    t_sel = ""
-    
     tool_info = df_inv[df_inv["品名規格"] == t_name]
     if not tool_info.empty:
         idx = tool_info.index[0]
