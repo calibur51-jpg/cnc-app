@@ -173,8 +173,8 @@ with t1:
                     if response.status_code == 200:
                         st.session_state.data[0].loc[idx, "目前庫存"] -= qty
                         st.session_state["q_val"] = 1
-                        msg_area.success(f"✅ 已領刀：{t_name} x {qty}")
-                        time.sleep(1.5)
+                        # --- 這裡是你要求的修改點，其他邏輯完全不動 ---
+                        st.toast(f"✅ 已領刀：{t_name} x {qty}", icon="✅")
                         st.rerun()
                     else:
                         msg_area.error(f"❌ 寫入失敗")
