@@ -91,47 +91,40 @@ with t1:
     st.header("🔪 刀具領用")
     _, df_log, df_set = st.session_state.data
     
-    # 1. 處理掃描邏輯：算出預設的索引 (Index)
+    # 【新增機制】如果記憶體中有成功訊息，直接顯示在最上方
+    if "notify_msg" in st.session_state:
+        st.success(st.session_state["notify_msg"])
+        # 顯示後刪除，避免下次刷新又出現
+        del st.session_state["notify_msg"]
+
+    # 1. 處理掃描邏輯
     default_cat_idx = 0
-    default_tool_idx = 0
-    
     if "scanned_id" in st.session_state and st.session_state.scanned_id is not None:
         match = df_inv[df_inv["刀具編號"].astype(str) == st.session_state.scanned_id]
         if not match.empty:
             cat_name = match.iloc[0]["分類"]
-            tool_name = match.iloc[0]["品名規格"]
-            
-            # 計算分類的索引
             all_cats = ["全部"] + df_inv["分類"].unique().tolist()
             if cat_name in all_cats:
                 default_cat_idx = all_cats.index(cat_name)
-            
-            # 注意：這裡我們先不強制鎖定，等下交給 selectbox 的 index 控制
-            st.session_state.pending_tool = tool_name
+            st.session_state.pending_tool = match.iloc[0]["品名規格"]
         else:
             st.error(f"❌ 找不到編號 {st.session_state.scanned_id} 的刀具")
-        
-        st.session_state.scanned_id = None # 清除狀態，讓下次掃描才觸發，且不再鎖定
+        st.session_state.scanned_id = None 
     
-    # 2. 顯示分類選擇器
     all_cats = ["全部"] + df_inv["分類"].unique().tolist()
     cat_sel = st.selectbox("分類", all_cats, index=default_cat_idx, key="t1_cat")
     
-    # 3. 篩選刀具清單
     df_f = df_inv if cat_sel == "全部" else df_inv[df_inv["分類"] == cat_sel]
     t_list = df_f["品名規格"].tolist()
     
-    # 計算刀具索引 (如果有 pending_tool 且在清單中)
     tool_idx = 0
     if "pending_tool" in st.session_state:
         if st.session_state.pending_tool in t_list:
             tool_idx = t_list.index(st.session_state.pending_tool)
-        del st.session_state.pending_tool # 用完即刪
+        del st.session_state.pending_tool
         
-    # 4. 顯示刀具選擇器
     t_name = st.selectbox("選擇領用刀具", t_list, index=tool_idx, key="t1_tool")
 
-    # 5. 顯示庫存與資訊
     cur_stock = 0
     tool_info = df_inv[df_inv["品名規格"] == t_name]
     if not tool_info.empty:
@@ -142,7 +135,6 @@ with t1:
     else:
         st.warning("⚠️ 請選擇刀具規格")
 
-    # (以下程式碼完全不變，維持你的領用邏輯)
     if "q_val" not in st.session_state: st.session_state["q_val"] = 1
     c1, c2 = st.columns(2)
     with c1: 
@@ -153,16 +145,18 @@ with t1:
         if st.button("🔄 歸1", key="b_res"): 
             st.session_state["q_val"] = 1
             st.rerun()
+            
     qty = st.number_input("數量", min_value=1, value=st.session_state["q_val"])
     st.session_state["q_val"] = qty
     u_list = df_set["人員"].replace("", pd.NA).dropna().unique().tolist()
-    m_list = df_set["機台"].replace("", pd.NA).dropna().tolist()
     u = st.selectbox("人員", u_list, key="t1_user")
     m = "無"
     r = st.selectbox("原因", ["正常磨損", "斷刀", "架機", "其他"], key="t1_reason")
     wo = st.text_input("工單", key="t1_wo").strip()
+    
     msg_area = st.empty()
-        if st.button("確認領用", type="primary", use_container_width=True):
+    
+    if st.button("確認領用", type="primary", use_container_width=True):
         if qty > cur_stock:
             msg_area.error("❌ 庫存不足！")
         else:
@@ -173,19 +167,17 @@ with t1:
                     if response.status_code == 200:
                         st.session_state.data[0].loc[idx, "目前庫存"] -= qty
                         st.session_state["q_val"] = 1
-                        # --- 修改處：把成功訊息存在 session_state ---
+                        # 成功訊息儲存至記憶體
                         st.session_state["notify_msg"] = f"✅ 已領刀：{t_name} x {qty}"
-                        st.rerun() 
+                        st.rerun()
                     else:
                         msg_area.error(f"❌ 寫入失敗")
                 except Exception as e:
                     msg_area.error(f"❌ 寫入失敗: {e}")
 
-    # --- 新增的訊息顯示邏輯 (直接放在按鈕下方) ---
-    # 因為頁面重整後程式會從頭跑，跑到這裡時，如果記憶體有通知，它就會顯示在按鈕下方
+    # --- 新增的訊息顯示邏輯 (放在按鈕下方，確保被正常渲染) ---
     if "notify_msg" in st.session_state:
         st.success(st.session_state["notify_msg"])
-        # 顯示完畢後刪除，這樣下一次刷新就不會再跳出來
         del st.session_state["notify_msg"]
 
 with t2:
