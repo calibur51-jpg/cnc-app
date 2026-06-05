@@ -91,13 +91,9 @@ with t1:
     st.header("🔪 刀具領用")
     _, df_log, df_set = st.session_state.data
     
-    # 【新增機制】如果記憶體中有成功訊息，直接顯示在最上方
-    if "notify_msg" in st.session_state:
-        st.success(st.session_state["notify_msg"])
-        # 顯示後刪除，避免下次刷新又出現
-        del st.session_state["notify_msg"]
+    # [這裡我把最上方的檢查刪掉了，避免訊息跑回最上面]
 
-    # 1. 處理掃描邏輯
+    # 1. 處理掃描邏輯 (維持原樣)
     default_cat_idx = 0
     if "scanned_id" in st.session_state and st.session_state.scanned_id is not None:
         match = df_inv[df_inv["刀具編號"].astype(str) == st.session_state.scanned_id]
@@ -169,15 +165,16 @@ with t1:
                         st.session_state["q_val"] = 1
                         # 成功訊息儲存至記憶體
                         st.session_state["notify_msg"] = f"✅ 已領刀：{t_name} x {qty}"
-                        st.rerun()
+                        st.rerun() 
                     else:
                         msg_area.error(f"❌ 寫入失敗")
                 except Exception as e:
                     msg_area.error(f"❌ 寫入失敗: {e}")
 
-    # --- 新增的訊息顯示邏輯 (放在按鈕下方，確保被正常渲染) ---
+    # --- 【這裡才是正確的位置】 ---
+    # 只有當程式跑到這裡時，才會檢查有沒有訊息，所以訊息會顯示在按鈕下方
     if "notify_msg" in st.session_state:
-        st.success(st.session_state["notify_msg"])
+        msg_area.success(st.session_state["notify_msg"]) # 使用 msg_area 會更精準定位在按鈕區下方
         del st.session_state["notify_msg"]
 
 with t2:
