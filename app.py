@@ -147,7 +147,7 @@ with t1:
     u_list = df_set["人員"].replace("", pd.NA).dropna().unique().tolist()
     u = st.selectbox("人員", u_list, key="t1_user")
     m = "無"
-    r = st.selectbox("原因", ["正常磨損", "斷刀", "架機", "其他"], key="t1_reason")
+    r = st.selectbox("原因", ["正常消耗 (磨損/架機)", "異常損耗 (斷刀/其他)"], key="t1_reason")
     wo = st.text_input("工單", key="t1_wo").strip()
     
     msg_area = st.empty()
