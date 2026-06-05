@@ -162,7 +162,7 @@ with t1:
     r = st.selectbox("原因", ["正常磨損", "斷刀", "架機", "其他"], key="t1_reason")
     wo = st.text_input("工單", key="t1_wo").strip()
     msg_area = st.empty()
-    if st.button("確認領用", type="primary", use_container_width=True):
+        if st.button("確認領用", type="primary", use_container_width=True):
         if qty > cur_stock:
             msg_area.error("❌ 庫存不足！")
         else:
@@ -173,13 +173,20 @@ with t1:
                     if response.status_code == 200:
                         st.session_state.data[0].loc[idx, "目前庫存"] -= qty
                         st.session_state["q_val"] = 1
-                        # --- 這裡是你要求的修改點，其他邏輯完全不動 ---
-                        st.toast(f"✅ 已領刀：{t_name} x {qty}", icon="✅")
-                        st.rerun()
+                        # --- 修改處：把成功訊息存在 session_state ---
+                        st.session_state["notify_msg"] = f"✅ 已領刀：{t_name} x {qty}"
+                        st.rerun() 
                     else:
                         msg_area.error(f"❌ 寫入失敗")
                 except Exception as e:
                     msg_area.error(f"❌ 寫入失敗: {e}")
+
+    # --- 新增的訊息顯示邏輯 (直接放在按鈕下方) ---
+    # 因為頁面重整後程式會從頭跑，跑到這裡時，如果記憶體有通知，它就會顯示在按鈕下方
+    if "notify_msg" in st.session_state:
+        st.success(st.session_state["notify_msg"])
+        # 顯示完畢後刪除，這樣下一次刷新就不會再跳出來
+        del st.session_state["notify_msg"]
 
 with t2:
     st.header("🔒 管理員專區")
