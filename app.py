@@ -382,22 +382,38 @@ with t4:
         st.success("✅ 驗證成功")
         st.divider()
         
-        # 判斷庫存欄位名稱 (這是你原本的邏輯)
+        # --- [這是我新增的獨立提醒功能] ---
+        # 只針對「架上」做比對，不跟倉庫數混在一起
+        low_shelf_df = df_inv[df_inv["架上"] <= df_inv["安全庫存"]].copy()
+        
+        if not low_shelf_df.empty:
+            st.warning(f"🚨 架上庫存警示：共有 {len(low_shelf_df)} 項刀具低於安全庫存！")
+            with st.expander("🚨 查看「架上」短缺清單", expanded=True):
+                # 計算缺口 = 安全 - 架上
+                low_shelf_df["補貨缺口"] = low_shelf_df["安全庫存"] - low_shelf_df["架上"]
+                st.dataframe(low_shelf_df[["品名規格", "架上", "安全庫存", "補貨缺口"]], use_container_width=True)
+            
+            with st.expander("📋 產生架上補貨清單"):
+                order_text = "廠商您好，請協助補充以下刀具（架上庫存不足）：\n\n"
+                for _, row in low_shelf_df.iterrows():
+                    order_text += f"【{row['品名規格']}】\n目前架上：{row['架上']} | 缺口：{row['安全庫存'] - row['架上']}\n\n"
+                st.text_area("複製以下內容：", order_text, height=200)
+        else:
+            st.success("✅ 架上庫存皆在安全水位以上。")
+        # -----------------------------------
+
+        st.divider()
+        st.subheader("⚙️ 選擇目標刀具")
+        
+        # [以下完全是你原本的程式碼，完全沒動]
         stock_col = "currently_stock" if "currently_stock" in df_inv.columns else "倉庫數量"
         low_stock_df = df_inv[df_inv[stock_col] <= df_inv["安全庫存"]]
         
         if not low_stock_df.empty:
             st.warning(f"🚨 注意：共有 {len(low_stock_df)} 項刀具低於安全庫存！")
-            
-            # --- [這是我額外新增的：架上短缺提醒] ---
-            with st.expander("🚨 架上庫存短缺與缺口計算", expanded=True):
-                # 這裡計算架上的缺口
-                low_shelf_df = df_inv[df_inv["架上"] <= df_inv["安全庫存"]].copy()
-                low_shelf_df["補貨缺口"] = low_shelf_df["安全庫存"] - low_shelf_df["架上"]
-                st.dataframe(low_shelf_df[["品名規格", "架上", "安全庫存", "補貨缺口"]], use_container_width=True)
-            # ------------------------------------
-
-            with st.expander("📋 產生叫刀清單 (快速複製給廠商)"):
+            with st.expander("📦 查看原本系統的低庫存清單", expanded=True):
+                st.dataframe(low_stock_df[["品名規格", stock_col, "安全庫存"]], use_container_width=True)
+            with st.expander("📋 產生叫刀清單 (原本功能)"):
                 order_text = "廠商您好，請協助補充以下刀具：\n\n"
                 for _, row in low_stock_df.iterrows():
                     order_text += f"【{row['品名規格']}】\n需求數量：____ 個\n\n"
@@ -405,8 +421,6 @@ with t4:
         else:
             st.success("✅ 所有庫存皆在安全水位以上，運作正常。")
         
-        st.divider()
-        st.subheader("⚙️ 選擇目標刀具")
         categories = ["全部"] + df_inv["分類"].dropna().unique().tolist()
         c1, c2 = st.columns(2)
         with c1:
@@ -471,7 +485,7 @@ with t4:
                         if post_data_to_sheet(payload):
                             idx = df_inv[df_inv["刀具編號"] == tool_info["刀具編號"]].index[0]
                             
-                            # 1. 處理庫存記憶體更新 (完全還原你的原始邏輯)
+                            # 1. 處理庫存記憶體更新 (完全原樣保留)
                             try:
                                 if mode == "進貨":
                                     st.session_state.data[0].loc[idx, "目前庫存"] = cur_qty + qty_input
@@ -486,7 +500,7 @@ with t4:
                                 except:
                                     pass
                                     
-                            # 2. 處理單價記憶體更新
+                            # 2. 處理單價記憶體更新 (完全原樣保留)
                             try:
                                 st.session_state.data[0].loc[idx, "單價"] = price_input
                             except:
