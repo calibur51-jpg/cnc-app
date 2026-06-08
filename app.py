@@ -340,7 +340,7 @@ with t3:
                     df_in = df_this_month[df_this_month["動作"] == "進貨"].groupby("刀具編號")["數量"].sum().reset_index(name="本月進貨量")
                     df_out = df_this_month[df_this_month["動作"] == "領用"].groupby("刀具編號")["數量"].sum().reset_index(name="本月領用量")
                     
-                    df_acc = df_inv[["分類", "刀具編號", "品名規格", "目前庫存"]].merge(df_in, on="刀具編號", how="left").merge(df_out, on="刀具編號", how="left").fillna(0)
+                    df_acc = df_inv[["分類", "刀具編號", "品名規格", "倉庫數量"]].merge(df_in, on="刀具編號", how="left").merge(df_out, on="刀具編號", how="left").fillna(0)
                     
                     # 復刻：備用單價映射與財務計算
                     inv_price_map = pd.to_numeric(df_inv.set_index("刀具編號")["單價"], errors='coerce').fillna(0).to_dict()
