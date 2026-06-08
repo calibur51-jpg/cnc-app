@@ -463,19 +463,27 @@ with t4:
                 col_b.metric("安全水位", safe_qty)
                 col_c.metric("目前系統單價", f"${int(current_price)}")
                 
-                mode = st.radio("選擇操作模式", ["進貨", "盤點"], horizontal=True)
+               # 改為三個選項
+                mode = st.radio("選擇操作模式", ["進貨", "上架", "盤點"], horizontal=True)
                 
                 with st.form("t4_action_form", clear_on_submit=True):
                     qty_input = st.number_input("數量", min_value=0, value=0)
+                    
+                    # 進貨時顯示單價，上架/盤點時不用
                     if mode == "進貨":
-                        price_input = st.number_input("本次進貨單價 (若有變動請直接修改)", min_value=0.0, value=current_price, step=10.0)
+                        price_input = st.number_input("本次進貨單價", min_value=0.0, value=current_price, step=10.0)
                     else:
                         price_input = current_price
                         
                     u_input = st.text_input("操作人員")
-                    btn_text = "確認進貨 (累加庫存與更新單價)" if mode == "進貨" else "確認盤點 (覆寫庫存)"
+                    
+                    # 按鈕文字
+                    if mode == "進貨": btn_text = "確認進貨 (增加庫存並更新單價)"
+                    elif mode == "上架": btn_text = "確認上架 (倉庫 -> 架上)"
+                    else: btn_text = "確認盤點 (覆寫架上庫存)"
                     
                     if st.form_submit_button(btn_text):
+                        # 準備資料
                         payload = {
                             "action": mode,
                             "t_id": tool_info["刀具編號"],
@@ -484,35 +492,29 @@ with t4:
                             "price": price_input,
                             "u": u_input
                         }
+                        
                         if post_data_to_sheet(payload):
                             idx = df_inv[df_inv["刀具編號"] == tool_info["刀具編號"]].index[0]
                             
-                            # 1. 處理庫存記憶體更新 (完全原樣保留)
-                            try:
-                                if mode == "進貨":
-                                    st.session_state.data[0].loc[idx, "目前庫存"] = cur_qty + qty_input
-                                else:
-                                    st.session_state.data[0].loc[idx, "currently_stock"] = qty_input
-                            except:
-                                try:
-                                    if mode == "進貨":
-                                        st.session_state.data[0].loc[idx, "currently_stock"] = cur_qty + qty_input
-                                    else:
-                                        st.session_state.data[0].loc[idx, "currently_stock"] = qty_input
-                                except:
-                                    pass
-                                    
-                            # 2. 處理單價記憶體更新 (完全原樣保留)
-                            try:
+                            # 處理記憶體更新
+                            if mode == "進貨":
+                                st.session_state.data[0].loc[idx, "架上"] = cur_qty + qty_input
                                 st.session_state.data[0].loc[idx, "單價"] = price_input
-                            except:
-                                pass
+                            elif mode == "上架":
+                                # 上架邏輯：架上+，倉庫-
+                                st.session_state.data[0].loc[idx, "架上"] = cur_qty + qty_input
+                                # 這裡假設你原本的倉庫欄位叫做 "倉庫數量"
+                                if "倉庫數量" in st.session_state.data[0].columns:
+                                    warehouse_qty = int(st.session_state.data[0].loc[idx, "倉庫數量"])
+                                    st.session_state.data[0].loc[idx, "倉庫數量"] = max(0, warehouse_qty - qty_input)
+                            else: # 盤點
+                                st.session_state.data[0].loc[idx, "架上"] = qty_input
                             
                             st.cache_data.clear() 
-                            st.session_state.success_msg = f"✅ {mode}成功！庫存與單價已即時同步。"
+                            st.session_state.success_msg = f"✅ {mode}成功！"
                             st.rerun()
                         else:
-                            st.error("❌ 操作失敗，請檢查網路連線")
+                            st.error("❌ 操作失敗")
             else:
                 st.warning("⚠️ 刀具資料加載中，請稍候...")
                 
