@@ -428,7 +428,7 @@ with t4:
                 try:
                     cur_qty = int(tool_info["目前庫存"])
                 except:
-                    cur_qty = int(tool_info["currently_stock"])
+                    cur_qty = int(tool_info["倉庫數量"])
                 safe_qty = int(tool_info["安全庫存"])
                 
                 try:
