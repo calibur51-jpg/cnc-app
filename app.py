@@ -459,7 +459,12 @@ with t4:
                             df["架上"] = pd.to_numeric(df["架上"], errors='coerce').fillna(0)
                             df["倉庫數量"] = pd.to_numeric(df["倉庫數量"], errors='coerce').fillna(0)
                             
-                            # 處理記憶體更新
+                        # 處理記憶體更新
+                            # 在寫入之前，強制將這些欄位轉為數字型別，避開 TypeError
+                            df["倉庫數量"] = pd.to_numeric(df["倉庫數量"], errors='coerce')
+                            df["單價"] = pd.to_numeric(df["單價"], errors='coerce')
+                            df["架上"] = pd.to_numeric(df["架上"], errors='coerce')
+
                             if mode == "進貨":
                                 df.loc[idx, "倉庫數量"] = cur_wh + qty_input
                                 df.loc[idx, "單價"] = price_input
