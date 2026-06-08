@@ -415,7 +415,7 @@ with t4:
             st.warning(f"🚨 注意：共有 {len(low_stock_df)} 項刀具低於安全庫存！")
             with st.expander("📦 查看原本系統的低庫存清單", expanded=True):
                 st.dataframe(low_stock_df[["品名規格", stock_col, "安全庫存"]], use_container_width=True)
-            with st.expander("📋 產生叫刀清單 (原本功能)"):
+            with st.expander("📋 產生叫刀清單"):
                 order_text = "廠商您好，請協助補充以下刀具：\n\n"
                 for _, row in low_stock_df.iterrows():
                     order_text += f"【{row['品名規格']}】\n需求數量：____ 個\n\n"
