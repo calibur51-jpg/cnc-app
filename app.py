@@ -270,7 +270,7 @@ with t2:
                             raw_qty = 0
                         
                     default_qty = max(0, raw_qty) 
-                    st.info(f"📊 目前系統紀錄庫存：{raw_qty}支 ]}")
+                    st.info(f"📊 目前系統紀錄庫存：{raw_qty}支 ]")
                     
                     new_adj_qty = st.number_input("輸入正確現場庫存總數", min_value=0, value=default_qty)
                     
