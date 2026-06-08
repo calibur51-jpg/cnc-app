@@ -418,7 +418,6 @@ with t4:
             order_text += "---------------------------------\n"
             for _, row in low_stock_df.iterrows():
                 order_text += f"品名：{row['品名規格']}\n"
-                order_text += f"安全庫存：{int(row['安全庫存'])} | 現有庫存：{int(row['倉庫數量'])}\n"
                 order_text += f"叫貨數量：__________ \n"
                 order_text += "---------------------------------\n"
             
