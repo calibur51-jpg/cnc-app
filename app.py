@@ -284,7 +284,7 @@ with t2:
                             st.session_state.last_action = "校正"
                             idx = df_inv[df_inv["刀具編號"] == current_inv['刀具編號']].index[0]
                             try:
-                                st.session_state.data[0].loc[idx, "目前庫存"] = new_adj_qty
+                                st.session_state.data[0].loc[idx, "倉庫數量"] = new_adj_qty
                             except:
                                 st.session_state.data[0].loc[idx, "currently_stock"] = new_adj_qty
                                 
