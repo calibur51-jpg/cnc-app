@@ -274,7 +274,7 @@ with t2:
                     
                     if st.button("確認校正", key="t2_adj_confirm_btn"):
                         # 對應你的 GAS 邏輯：參數名稱為 new_qty
-                        payload = {"action": "盤點", "t_sel": current_inv['刀具編號'], "new_qty": new_adj_qty}
+                        payload = {"action": "校正", "t_sel": current_inv['刀具編號'], "new_qty": new_adj_qty}
                         
                         if post_data_to_sheet(payload):
                             st.session_state.last_action = "校正"
