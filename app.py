@@ -407,7 +407,7 @@ with t4:
         df_inv["總庫存"] = df_inv["架上"] + df_inv["倉庫數量"]
         
         # 篩選出總庫存 < 安全庫存的項目
-        low_stock_df = df_inv[df_inv["總庫存"] < df_inv["安全庫存"]].copy()
+        low_stock_df = df_inv[df_inv["總庫存"] <= df_inv["安全庫存"]].copy()
         
         if not low_stock_df.empty:
             st.warning(f"⚠️ 目前有 {len(low_stock_df)} 項刀具總庫存低於安全庫存")
