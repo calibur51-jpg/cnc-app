@@ -165,7 +165,7 @@ with t1:
                 try:
                     response = requests.post(WEBHOOK_URL, json=payload, timeout=10)
                     if response.status_code == 200:
-                        st.session_state.data[0].loc[idx, "目前庫存"] -= qty
+                        st.session_state.data[0].loc[idx, "架上"] -= qty
                         st.session_state["q_val"] = 1
                         # 成功訊息儲存至記憶體
                         st.session_state["notify_msg"] = f"✅ 已領刀：{t_name} x {qty}"
