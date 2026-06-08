@@ -382,25 +382,27 @@ with t4:
         st.success("✅ 驗證成功")
         st.divider()
         
-        # --- [這是我新增的獨立提醒功能] ---
-        # 只針對「架上」做比對，不跟倉庫數混在一起
-        low_shelf_df = df_inv[df_inv["架上"] <= df_inv["安全庫存"]].copy()
+       # --- [獨立功能：架上庫存快查] ---
+        st.subheader("📦 架上補貨檢查")
+        
+        # 確保架上欄位是數字格式以便比較
+        df_inv["架上"] = pd.to_numeric(df_inv["架上"], errors='coerce').fillna(0)
+        
+        # 只篩選架上小於 2 的項目
+        low_shelf_df = df_inv[df_inv["架上"] < 2].copy()
         
         if not low_shelf_df.empty:
-            st.warning(f"🚨 架上庫存警示：共有 {len(low_shelf_df)} 項刀具低於安全庫存！")
-            with st.expander("🚨 查看「架上」短缺清單", expanded=True):
-                # 計算缺口 = 安全 - 架上
-                low_shelf_df["補貨缺口"] = low_shelf_df["安全庫存"] - low_shelf_df["架上"]
-                st.dataframe(low_shelf_df[["品名規格", "架上", "安全庫存", "補貨缺口"]], use_container_width=True)
+            st.warning(f"🚨 注意：共有 {len(low_shelf_df)} 項刀具「架上數量低於 2」，請盡快補貨！")
             
-            with st.expander("📋 產生架上補貨清單"):
-                order_text = "廠商您好，請協助補充以下刀具（架上庫存不足）：\n\n"
-                for _, row in low_shelf_df.iterrows():
-                    order_text += f"【{row['品名規格']}】\n目前架上：{row['架上']} | 缺口：{row['安全庫存'] - row['架上']}\n\n"
-                st.text_area("複製以下內容：", order_text, height=200)
+            # 直接顯示品名與架上數量，方便快速對照
+            st.dataframe(
+                low_shelf_df[["品名規格", "架上"]], 
+                use_container_width=True,
+                hide_index=True
+            )
         else:
-            st.success("✅ 架上庫存皆在安全水位以上。")
-        # -----------------------------------
+            st.success("✅ 架上庫存充足，無需補貨")
+        # -------------------------------
 
         st.divider()
         st.subheader("⚙️ 選擇目標刀具")
