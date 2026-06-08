@@ -346,7 +346,7 @@ with t3:
                     inv_price_map = pd.to_numeric(df_inv.set_index("刀具編號")["單價"], errors='coerce').fillna(0).to_dict()
                     df_acc["當月單價"] = df_acc["刀具編號"].map(inv_price_map).fillna(0)
                     df_acc["本月新購買總金額"] = df_acc["本月進貨量"] * df_acc["當月單價"]
-                    df_acc["現有庫存總價值"] = df_acc["目前庫存"] * df_acc["當月單價"]
+                    df_acc["現有庫存總價值"] = df_acc["倉庫數量"] * df_acc["當月單價"]
                     
                     st.metric("本月新購總額", f"${int(df_acc['本月新購買總金額'].sum()):,}")
                     st.dataframe(df_acc, use_container_width=True)
