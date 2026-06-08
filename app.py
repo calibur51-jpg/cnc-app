@@ -472,7 +472,9 @@ with t4:
                                 df.loc[idx, "架上"] = cur_shelf + qty_input
                                 df.loc[idx, "倉庫數量"] = max(0, cur_wh - qty_input)
                             elif mode == "盤點":
-                                df.loc[idx, "倉庫數量"] = qty_input
+                                # 強制轉換為整數，確保傳輸格式正確
+                                clean_qty = int(qty_input) if pd.notnull(qty_input) else 0
+                                df.loc[idx, "倉庫數量"] = clean_qty
                             
                             st.cache_data.clear() 
                             st.session_state.success_msg = f"✅ {mode}成功！"
