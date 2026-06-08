@@ -382,7 +382,7 @@ with t4:
         st.divider()
         
         # 判斷庫存欄位名稱
-        stock_col = "currently_stock" if "currently_stock" in df_inv.columns else "目前庫存"
+        stock_col = "currently_stock" if "currently_stock" in df_inv.columns else "倉庫數量"
         low_stock_df = df_inv[df_inv[stock_col] <= df_inv["安全庫存"]]
         
         if not low_stock_df.empty:
