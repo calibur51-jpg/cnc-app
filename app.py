@@ -382,35 +382,31 @@ with t4:
         st.success("✅ 驗證成功")
         st.divider()
         
-        # --- 補貨警示邏輯 ---
-        # 篩選出架上庫存 <= 安全庫存的項目
-        low_stock_df = df_inv[df_inv["架上"] <= df_inv["安全庫存"]].copy()
-        
-        # 計算補貨缺口
-        low_stock_df["補貨缺口"] = low_stock_df["安全庫存"] - low_stock_df["架上"]
+        # 判斷庫存欄位名稱 (這是你原本的邏輯)
+        stock_col = "currently_stock" if "currently_stock" in df_inv.columns else "倉庫數量"
+        low_stock_df = df_inv[df_inv[stock_col] <= df_inv["安全庫存"]]
         
         if not low_stock_df.empty:
             st.warning(f"🚨 注意：共有 {len(low_stock_df)} 項刀具低於安全庫存！")
             
-            # 新增：補貨建議顯示 (包含缺口計算)
-            with st.expander("🚨 架上補貨建議 (自動計算缺口)", expanded=True):
-                st.dataframe(
-                    low_stock_df[["品名規格", "架上", "安全庫存", "補貨缺口"]], 
-                    use_container_width=True
-                )
-            
-            # 產生叫刀清單 (維持原功能)
+            # --- [這是我額外新增的：架上短缺提醒] ---
+            with st.expander("🚨 架上庫存短缺與缺口計算", expanded=True):
+                # 這裡計算架上的缺口
+                low_shelf_df = df_inv[df_inv["架上"] <= df_inv["安全庫存"]].copy()
+                low_shelf_df["補貨缺口"] = low_shelf_df["安全庫存"] - low_shelf_df["架上"]
+                st.dataframe(low_shelf_df[["品名規格", "架上", "安全庫存", "補貨缺口"]], use_container_width=True)
+            # ------------------------------------
+
             with st.expander("📋 產生叫刀清單 (快速複製給廠商)"):
                 order_text = "廠商您好，請協助補充以下刀具：\n\n"
                 for _, row in low_stock_df.iterrows():
-                    order_text += f"【{row['品名規格']}】\n目前架上：{row['架上']} 個 | 安全庫存：{row['安全庫存']} 個\n建議補貨：{row['補貨缺口']} 個\n\n"
+                    order_text += f"【{row['品名規格']}】\n需求數量：____ 個\n\n"
                 st.text_area("複製以下內容傳給廠商：", order_text, height=300)
         else:
-            st.success("✅ 所有架上庫存皆在安全水位以上，運作正常。")
+            st.success("✅ 所有庫存皆在安全水位以上，運作正常。")
         
         st.divider()
         st.subheader("⚙️ 選擇目標刀具")
-        
         categories = ["全部"] + df_inv["分類"].dropna().unique().tolist()
         c1, c2 = st.columns(2)
         with c1:
@@ -435,22 +431,33 @@ with t4:
             
             if not matched_df.empty:
                 tool_info = matched_df.iloc[0]
-                cur_qty = int(tool_info["架上"])  # 統一使用「架上」
+                try:
+                    cur_qty = int(tool_info["目前庫存"])
+                except:
+                    cur_qty = int(tool_info["倉庫數量"])
                 safe_qty = int(tool_info["安全庫存"])
-                current_price = float(tool_info["單價"]) if "單價" in tool_info else 0.0
                 
+                try:
+                    current_price = float(tool_info["單價"])
+                except:
+                    current_price = 0.0
+                    
                 col_a, col_b, col_c = st.columns(3)
-                col_a.metric("目前架上庫存", cur_qty)
+                col_a.metric("目前庫存", cur_qty)
                 col_b.metric("安全水位", safe_qty)
-                col_c.metric("系統單價", f"${int(current_price)}")
+                col_c.metric("目前系統單價", f"${int(current_price)}")
                 
                 mode = st.radio("選擇操作模式", ["進貨", "盤點"], horizontal=True)
                 
                 with st.form("t4_action_form", clear_on_submit=True):
                     qty_input = st.number_input("數量", min_value=0, value=0)
-                    price_input = st.number_input("本次單價", min_value=0.0, value=current_price, step=10.0) if mode == "進貨" else current_price
+                    if mode == "進貨":
+                        price_input = st.number_input("本次進貨單價 (若有變動請直接修改)", min_value=0.0, value=current_price, step=10.0)
+                    else:
+                        price_input = current_price
+                        
                     u_input = st.text_input("操作人員")
-                    btn_text = "確認進貨 (更新庫存與單價)" if mode == "進貨" else "確認盤點 (覆寫架上庫存)"
+                    btn_text = "確認進貨 (累加庫存與更新單價)" if mode == "進貨" else "確認盤點 (覆寫庫存)"
                     
                     if st.form_submit_button(btn_text):
                         payload = {
@@ -463,15 +470,30 @@ with t4:
                         }
                         if post_data_to_sheet(payload):
                             idx = df_inv[df_inv["刀具編號"] == tool_info["刀具編號"]].index[0]
-                            # 更新記憶體
-                            if mode == "進貨":
-                                st.session_state.data[0].loc[idx, "架上"] = cur_qty + qty_input
-                            else:
-                                st.session_state.data[0].loc[idx, "架上"] = qty_input
-                            st.session_state.data[0].loc[idx, "單價"] = price_input
+                            
+                            # 1. 處理庫存記憶體更新 (完全還原你的原始邏輯)
+                            try:
+                                if mode == "進貨":
+                                    st.session_state.data[0].loc[idx, "目前庫存"] = cur_qty + qty_input
+                                else:
+                                    st.session_state.data[0].loc[idx, "currently_stock"] = qty_input
+                            except:
+                                try:
+                                    if mode == "進貨":
+                                        st.session_state.data[0].loc[idx, "currently_stock"] = cur_qty + qty_input
+                                    else:
+                                        st.session_state.data[0].loc[idx, "currently_stock"] = qty_input
+                                except:
+                                    pass
+                                    
+                            # 2. 處理單價記憶體更新
+                            try:
+                                st.session_state.data[0].loc[idx, "單價"] = price_input
+                            except:
+                                pass
                             
                             st.cache_data.clear() 
-                            st.session_state.success_msg = f"✅ {mode}成功！"
+                            st.session_state.success_msg = f"✅ {mode}成功！庫存與單價已即時同步。"
                             st.rerun()
                         else:
                             st.error("❌ 操作失敗，請檢查網路連線")
@@ -481,7 +503,6 @@ with t4:
         if "success_msg" in st.session_state:
             st.success(st.session_state.success_msg)
             del st.session_state.success_msg
-            
     elif pw != "":
         st.warning("⚠️ 密碼錯誤")
     else:
