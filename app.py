@@ -384,6 +384,7 @@ with t4:
         
         # --- [獨立功能：架上庫存快查] ---
         st.subheader("📦 架上補貨檢查")
+        # 統一處理型別
         df_inv["架上"] = pd.to_numeric(df_inv["架上"], errors='coerce').fillna(0)
         low_shelf_df = df_inv[df_inv["架上"] < 2].copy()
         
@@ -419,17 +420,17 @@ with t4:
             
             if not matched_df.empty:
                 tool_info = matched_df.iloc[0]
-                # 明確定義欄位，避免 try/except 誤判
+                
+                # 明確讀取欄位
                 cur_shelf = int(tool_info["架上"])
                 cur_wh = int(tool_info["倉庫數量"])
-                
                 try: current_price = float(tool_info["單價"])
                 except: current_price = 0.0
                     
                 col_a, col_b, col_c = st.columns(3)
-                col_a.metric("架上", cur_shelf)
-                col_b.metric("倉庫", cur_wh)
-                col_c.metric("單價", f"${int(current_price)}")
+                col_a.metric("架上數量", cur_shelf)
+                col_b.metric("倉庫數量", cur_wh)
+                col_c.metric("系統單價", f"${int(current_price)}")
                 
                 mode = st.radio("選擇操作模式", ["進貨", "上架", "盤點"], horizontal=True)
                 
@@ -449,16 +450,22 @@ with t4:
                         
                         if post_data_to_sheet(payload):
                             idx = df_inv[df_inv["刀具編號"] == tool_info["刀具編號"]].index[0]
+                            df = st.session_state.data[0]
                             
-                            # [關鍵修補]：進貨與盤點改動「倉庫數量」，上架才動「架上」與「倉庫」
+                            # 強制轉型修復 TypeError
+                            df["架上"] = pd.to_numeric(df["架上"], errors='coerce').fillna(0)
+                            df["倉庫數量"] = pd.to_numeric(df["倉庫數量"], errors='coerce').fillna(0)
+                            df["單價"] = pd.to_numeric(df["單價"], errors='coerce').fillna(0.0)
+                            
+                            # 記憶體更新邏輯
                             if mode == "進貨":
-                                st.session_state.data[0].loc[idx, "倉庫數量"] = cur_wh + qty_input
-                                st.session_state.data[0].loc[idx, "單價"] = price_input
+                                df.loc[idx, "倉庫數量"] = cur_wh + qty_input
+                                df.loc[idx, "單價"] = price_input
                             elif mode == "上架":
-                                st.session_state.data[0].loc[idx, "架上"] = cur_shelf + qty_input
-                                st.session_state.data[0].loc[idx, "倉庫數量"] = max(0, cur_wh - qty_input)
+                                df.loc[idx, "架上"] = cur_shelf + qty_input
+                                df.loc[idx, "倉庫數量"] = max(0, cur_wh - qty_input)
                             elif mode == "盤點":
-                                st.session_state.data[0].loc[idx, "倉庫數量"] = qty_input
+                                df.loc[idx, "倉庫數量"] = qty_input
                             
                             st.cache_data.clear() 
                             st.session_state.success_msg = f"✅ {mode}成功！"
@@ -467,6 +474,12 @@ with t4:
                             st.error("❌ 操作失敗")
             else:
                 st.warning("⚠️ 刀具資料加載中...")
+                
+        if "success_msg" in st.session_state:
+            st.success(st.session_state.success_msg)
+            del st.session_state.success_msg
+    elif pw != "":
+        st.warning("⚠️ 密碼錯誤")
                 
         if "success_msg" in st.session_state:
             st.success(st.session_state.success_msg)
