@@ -127,6 +127,7 @@ with t1:
         idx = tool_info.index[0]
         t_sel = tool_info.loc[idx, "刀具編號"]
         cur_stock = int(tool_info.loc[idx, "目前庫存"])
+        warehouse_stock = int(tool_info.loc[idx, "倉庫數量"])
         st.info(f"編號:{t_sel} | 架上:{cur_stock} 支")
     else:
         st.warning("⚠️ 請選擇刀具規格")
