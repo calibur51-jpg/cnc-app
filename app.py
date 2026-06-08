@@ -382,24 +382,14 @@ with t4:
         st.success("✅ 驗證成功")
         st.divider()
         
-       # --- [獨立功能：架上庫存快查] ---
+        # --- [獨立功能：架上庫存快查] ---
         st.subheader("📦 架上補貨檢查")
-        
-        # 確保架上欄位是數字格式以便比較
         df_inv["架上"] = pd.to_numeric(df_inv["架上"], errors='coerce').fillna(0)
-        
-        # 只篩選架上小於 2 的項目
         low_shelf_df = df_inv[df_inv["架上"] < 2].copy()
         
         if not low_shelf_df.empty:
             st.warning(f"🚨 注意：共有 {len(low_shelf_df)} 項刀具「架上數量低於 2」，請盡快補貨！")
-            
-            # 直接顯示品名與架上數量，方便快速對照
-            st.dataframe(
-                low_shelf_df[["品名規格", "架上"]], 
-                use_container_width=True,
-                hide_index=True
-            )
+            st.dataframe(low_shelf_df[["品名規格", "架上"]], use_container_width=True, hide_index=True)
         else:
             st.success("✅ 架上庫存充足，無需補貨")
         # -------------------------------
@@ -407,32 +397,14 @@ with t4:
         st.divider()
         st.subheader("⚙️ 選擇目標刀具")
         
-        # [以下完全是你原本的程式碼，完全沒動]
-        stock_col = "currently_stock" if "currently_stock" in df_inv.columns else "倉庫數量"
-        low_stock_df = df_inv[df_inv[stock_col] <= df_inv["安全庫存"]]
-        
-        if not low_stock_df.empty:
-            st.warning(f"🚨 注意：共有 {len(low_stock_df)} 項刀具低於安全庫存！")
-            with st.expander("📦 查看原本系統的低庫存清單", expanded=True):
-                st.dataframe(low_stock_df[["品名規格", stock_col, "安全庫存"]], use_container_width=True)
-            with st.expander("📋 產生叫刀清單"):
-                order_text = "廠商您好，請協助補充以下刀具：\n\n"
-                for _, row in low_stock_df.iterrows():
-                    order_text += f"【{row['品名規格']}】\n需求數量：____ 個\n\n"
-                st.text_area("複製以下內容傳給廠商：", order_text, height=300)
-        else:
-            st.success("✅ 所有庫存皆在安全水位以上，運作正常。")
-        
+        # 搜尋篩選邏輯
         categories = ["全部"] + df_inv["分類"].dropna().unique().tolist()
         c1, c2 = st.columns(2)
-        with c1:
-            sel_cat = st.selectbox("篩選分類", options=categories, key="t4_cat")
-        with c2:
-            search_text = st.text_input("關鍵字搜尋", key="t4_search")
+        with c1: sel_cat = st.selectbox("篩選分類", options=categories, key="t4_cat")
+        with c2: search_text = st.text_input("關鍵字搜尋", key="t4_search")
             
         df_show = df_inv.copy()
-        if sel_cat != "全部":
-            df_show = df_show[df_show["分類"] == sel_cat]
+        if sel_cat != "全部": df_show = df_show[df_show["分類"] == sel_cat]
         if search_text:
             mask = df_show["刀具編號"].astype(str).str.contains(search_text, case=False, na=False) | \
                    df_show["品名規格"].astype(str).str.contains(search_text, case=False, na=False)
@@ -447,48 +419,30 @@ with t4:
             
             if not matched_df.empty:
                 tool_info = matched_df.iloc[0]
-                try:
-                    cur_qty = int(tool_info["目前庫存"])
-                except:
-                    cur_qty = int(tool_info["倉庫數量"])
-                safe_qty = int(tool_info["安全庫存"])
+                # 明確定義欄位，避免 try/except 誤判
+                cur_shelf = int(tool_info["架上"])
+                cur_wh = int(tool_info["倉庫數量"])
                 
-                try:
-                    current_price = float(tool_info["單價"])
-                except:
-                    current_price = 0.0
+                try: current_price = float(tool_info["單價"])
+                except: current_price = 0.0
                     
                 col_a, col_b, col_c = st.columns(3)
-                col_a.metric("目前庫存", cur_qty)
-                col_b.metric("安全水位", safe_qty)
-                col_c.metric("目前系統單價", f"${int(current_price)}")
+                col_a.metric("架上", cur_shelf)
+                col_b.metric("倉庫", cur_wh)
+                col_c.metric("單價", f"${int(current_price)}")
                 
-               # 改為三個選項
                 mode = st.radio("選擇操作模式", ["進貨", "上架", "盤點"], horizontal=True)
                 
                 with st.form("t4_action_form", clear_on_submit=True):
                     qty_input = st.number_input("數量", min_value=0, value=0)
-                    
-                    # 進貨時顯示單價，上架/盤點時不用
-                    if mode == "進貨":
-                        price_input = st.number_input("本次進貨單價", min_value=0.0, value=current_price, step=10.0)
-                    else:
-                        price_input = current_price
-                        
+                    price_input = st.number_input("本次單價", min_value=0.0, value=current_price, step=10.0) if mode == "進貨" else current_price
                     u_input = st.text_input("操作人員")
                     
-                    # 按鈕文字
-                    if mode == "進貨": btn_text = "確認進貨 (增加庫存並更新單價)"
-                    elif mode == "上架": btn_text = "確認上架 (倉庫 -> 架上)"
-                    else: btn_text = "確認盤點 (覆寫架上庫存)"
-                    
-                    if st.form_submit_button(btn_text):
-                        # 準備資料
+                    if st.form_submit_button(f"確認{mode}"):
                         payload = {
                             "action": mode,
                             "t_id": tool_info["刀具編號"],
                             "qty": qty_input,
-                            "new_qty": qty_input,
                             "price": price_input,
                             "u": u_input
                         }
@@ -496,19 +450,15 @@ with t4:
                         if post_data_to_sheet(payload):
                             idx = df_inv[df_inv["刀具編號"] == tool_info["刀具編號"]].index[0]
                             
-                            # 處理記憶體更新
+                            # [關鍵修補]：進貨與盤點改動「倉庫數量」，上架才動「架上」與「倉庫」
                             if mode == "進貨":
-                                st.session_state.data[0].loc[idx, "架上"] = cur_qty + qty_input
+                                st.session_state.data[0].loc[idx, "倉庫數量"] = cur_wh + qty_input
                                 st.session_state.data[0].loc[idx, "單價"] = price_input
                             elif mode == "上架":
-                                # 上架邏輯：架上+，倉庫-
-                                st.session_state.data[0].loc[idx, "架上"] = cur_qty + qty_input
-                                # 這裡假設你原本的倉庫欄位叫做 "倉庫數量"
-                                if "倉庫數量" in st.session_state.data[0].columns:
-                                    warehouse_qty = int(st.session_state.data[0].loc[idx, "倉庫數量"])
-                                    st.session_state.data[0].loc[idx, "倉庫數量"] = max(0, warehouse_qty - qty_input)
-                            else: # 盤點
-                                st.session_state.data[0].loc[idx, "架上"] = qty_input
+                                st.session_state.data[0].loc[idx, "架上"] = cur_shelf + qty_input
+                                st.session_state.data[0].loc[idx, "倉庫數量"] = max(0, cur_wh - qty_input)
+                            elif mode == "盤點":
+                                st.session_state.data[0].loc[idx, "倉庫數量"] = qty_input
                             
                             st.cache_data.clear() 
                             st.session_state.success_msg = f"✅ {mode}成功！"
@@ -516,12 +466,8 @@ with t4:
                         else:
                             st.error("❌ 操作失敗")
             else:
-                st.warning("⚠️ 刀具資料加載中，請稍候...")
+                st.warning("⚠️ 刀具資料加載中...")
                 
         if "success_msg" in st.session_state:
             st.success(st.session_state.success_msg)
             del st.session_state.success_msg
-    elif pw != "":
-        st.warning("⚠️ 密碼錯誤")
-    else:
-        st.info("請輸入管理員密碼以存取進貨與盤點功能")
