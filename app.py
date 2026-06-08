@@ -394,38 +394,42 @@ with t4:
 
 
 
-     # --- [區塊 1：安全庫存監控表] ---
+# --- [區塊 1：安全庫存監控表 (以總庫存為基準)] ---
         st.divider()
         st.subheader("🚨 庫存水位監控")
         
         # 確保數值型別正確，避免比較錯誤
-        df_inv["安全庫存"] = pd.to_numeric(df_inv["安全庫存"], errors='coerce').fillna(0)
+        df_inv["架上"] = pd.to_numeric(df_inv["架上"], errors='coerce').fillna(0)
         df_inv["倉庫數量"] = pd.to_numeric(df_inv["倉庫數量"], errors='coerce').fillna(0)
+        df_inv["安全庫存"] = pd.to_numeric(df_inv["安全庫存"], errors='coerce').fillna(0)
         
-        # 篩選出倉庫數量 < 安全庫存的項目
-        low_stock_df = df_inv[df_inv["倉庫數量"] < df_inv["安全庫存"]].copy()
+        # 計算總庫存 = 架上 + 倉庫
+        df_inv["總庫存"] = df_inv["架上"] + df_inv["倉庫數量"]
+        
+        # 篩選出總庫存 < 安全庫存的項目
+        low_stock_df = df_inv[df_inv["總庫存"] < df_inv["安全庫存"]].copy()
         
         if not low_stock_df.empty:
-            st.warning(f"⚠️ 目前有 {len(low_stock_df)} 項刀具低於安全庫存")
-            st.dataframe(low_stock_df[["分類", "品名規格", "倉庫數量", "安全庫存"]], use_container_width=True, hide_index=True)
+            st.warning(f"⚠️ 目前有 {len(low_stock_df)} 項刀具總庫存低於安全庫存")
+            # 顯示表格，新增一欄「總庫存」讓你看得更清楚
+            st.dataframe(low_stock_df[["分類", "品名規格", "架上", "倉庫數量", "總庫存", "安全庫存"]], use_container_width=True, hide_index=True)
             
             # --- [區塊 2：廠商叫貨文字檔] ---
             st.divider()
             st.subheader("📋 廠商叫貨清單 (快速複製)")
             
-            # 組裝純文字字串
             order_text = "【刀具叫貨清單】\n"
             order_text += "---------------------------------\n"
             for _, row in low_stock_df.iterrows():
                 order_text += f"品名：{row['品名規格']}\n"
+                order_text += f"架上：{int(row['架上'])} | 倉庫：{int(row['倉庫數量'])} | 總計：{int(row['總庫存'])} (安全庫存：{int(row['安全庫存'])})\n"
                 order_text += f"叫貨數量：__________ \n"
                 order_text += "---------------------------------\n"
             
-            # 用 text_area 呈現，方便你一鍵全選複製
             st.text_area("請複製下方內容貼給廠商：", value=order_text, height=250)
             
         else:
-            st.success("✅ 目前所有刀具倉庫存皆高於安全庫存，無需叫貨。")
+            st.success("✅ 目前所有刀具總庫存皆高於安全庫存，無需叫貨。")
 
 
         # -------------------------------
