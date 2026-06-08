@@ -127,7 +127,7 @@ with t1:
         idx = tool_info.index[0]
         t_sel = tool_info.loc[idx, "刀具編號"]
         cur_stock = int(tool_info.loc[idx, "目前庫存"])
-        st.info(f"編號:{t_sel} | 儲位:{tool_info.loc[idx, '儲位']} | 庫存:{cur_stock}")
+        st.info(f"編號:{t_sel} | 庫存:{cur_stock}")
     else:
         st.warning("⚠️ 請選擇刀具規格")
 
@@ -220,7 +220,6 @@ with t2:
                 new_id = st.text_input("刀具編號")
                 new_name = st.text_input("品名規格")
                 new_cat = st.selectbox("分類", options=category_options)
-                new_loc = st.text_input("儲位")
                 new_qty = st.number_input("初始庫存", min_value=0, value=0)
                 if st.form_submit_button("確認建檔"):
                     payload = {"action": "建檔", "t_id": new_id, "t_name": new_name, "cat": new_cat, "loc": new_loc, "qty": new_qty}
@@ -271,7 +270,7 @@ with t2:
                             raw_qty = 0
                         
                     default_qty = max(0, raw_qty) 
-                    st.info(f"📊 目前系統紀錄庫存：{raw_qty}支 | 儲位：{current_inv['儲位']}")
+                    st.info(f"📊 目前系統紀錄庫存：{raw_qty}支 ]}")
                     
                     new_adj_qty = st.number_input("輸入正確現場庫存總數", min_value=0, value=default_qty)
                     
@@ -340,7 +339,7 @@ with t3:
                     df_in = df_this_month[df_this_month["動作"] == "進貨"].groupby("刀具編號")["數量"].sum().reset_index(name="本月進貨量")
                     df_out = df_this_month[df_this_month["動作"] == "領用"].groupby("刀具編號")["數量"].sum().reset_index(name="本月領用量")
                     
-                    df_acc = df_inv[["分類", "刀具編號", "品名規格", "儲位", "目前庫存"]].merge(df_in, on="刀具編號", how="left").merge(df_out, on="刀具編號", how="left").fillna(0)
+                    df_acc = df_inv[["分類", "刀具編號", "品名規格", "目前庫存"]].merge(df_in, on="刀具編號", how="left").merge(df_out, on="刀具編號", how="left").fillna(0)
                     
                     # 復刻：備用單價映射與財務計算
                     inv_price_map = pd.to_numeric(df_inv.set_index("刀具編號")["單價"], errors='coerce').fillna(0).to_dict()
@@ -388,7 +387,7 @@ with t4:
         if not low_stock_df.empty:
             st.warning(f"🚨 注意：共有 {len(low_stock_df)} 項刀具低於安全庫存！")
             with st.expander("📦 查看低庫存清單", expanded=True):
-                st.dataframe(low_stock_df[["品名規格", stock_col, "安全庫存", "儲位"]], use_container_width=True)
+                st.dataframe(low_stock_df[["品名規格", stock_col, "安全庫存"]], use_container_width=True)
                 
             # --- 新增：叫刀清單產生器 ---
             with st.expander("📋 產生叫刀清單 (快速複製給廠商)"):
