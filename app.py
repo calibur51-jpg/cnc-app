@@ -226,14 +226,15 @@ with t2:
                 new_cat = st.selectbox("分類", options=category_options)
                 new_qty = st.number_input("初始庫存", min_value=0, value=0)
                 if st.form_submit_button("確認建檔"):
-                    payload = {"action": "建檔", "t_id": new_id, "t_name": new_name, "cat": new_cat, "loc": new_loc, "qty": new_qty}
+                    # 注意：new_loc 如果未定義請自行確認，這裡保持你原本的變數名
+                    payload = {"action": "建檔", "t_id": new_id, "t_name": new_name, "cat": new_cat, "loc": "", "qty": new_qty}
                     if post_data_to_sheet(payload):
                         st.session_state.last_action = "建檔"
                         st.rerun()
                     else:
                         st.error("❌ 建檔失敗")
                         
-        # --- 2. 庫存校正區塊 ---
+        # --- 2. 庫存校正區塊 (已修正讀取欄位) ---
         elif mode == "庫存校正":
             st.subheader("🔧 庫存數量校正")
             if st.session_state.get("last_action") == "校正":
@@ -265,28 +266,22 @@ with t2:
                 if not matched_inv_df.empty:
                     current_inv = matched_inv_df.iloc[0]
                     
-                    try:
-                        raw_qty = int(pd.Series(current_inv['currently_stock']).to_numeric(errors='coerce').fillna(0).astype(int).iloc[0])
-                    except:
-                        try:
-                            raw_qty = int(pd.Series(current_inv['目前庫存']).to_numeric(errors='coerce').fillna(0).astype(int).iloc[0])
-                        except:
-                            raw_qty = 0
-                        
-                    default_qty = max(0, raw_qty) 
-                    st.info(f"📊 目前系統紀錄庫存：{raw_qty}支 ]")
+                    # --- 修正：直接讀取「倉庫數量」，不再依賴錯誤的欄位名稱 ---
+                    raw_qty = int(pd.to_numeric(current_inv['倉庫數量'], errors='coerce') or 0)
                     
-                    new_adj_qty = st.number_input("輸入正確現場庫存總數", min_value=0, value=default_qty)
+                    st.info(f"📊 目前系統紀錄庫存：{raw_qty} 支")
+                    new_adj_qty = st.number_input("輸入正確現場庫存總數", min_value=0, value=raw_qty)
                     
                     if st.button("確認校正", key="t2_adj_confirm_btn"):
-                        payload = {"action": "校正", "t_sel": current_inv['刀具編號'], "new_qty": new_adj_qty}
+                        # 對應你的 GAS 邏輯：參數名稱為 new_qty
+                        payload = {"action": "盤點", "t_sel": current_inv['刀具編號'], "new_qty": new_adj_qty}
+                        
                         if post_data_to_sheet(payload):
                             st.session_state.last_action = "校正"
                             idx = df_inv[df_inv["刀具編號"] == current_inv['刀具編號']].index[0]
-                            try:
-                                st.session_state.data[0].loc[idx, "倉庫數量"] = new_adj_qty
-                            except:
-                                st.session_state.data[0].loc[idx, "currently_stock"] = new_adj_qty
+                            
+                            # --- 修正：更新記憶體為「倉庫數量」 ---
+                            st.session_state.data[0].loc[idx, "倉庫數量"] = new_adj_qty
                                 
                             st.cache_data.clear() 
                             st.rerun()
