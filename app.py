@@ -392,6 +392,33 @@ with t4:
             st.success("✅ 架上庫存充足，無需補貨")
         # -------------------------------
 
+
+
+      # --- [修正：改為以倉庫數量為基準的叫貨表] ---
+        st.divider()
+        st.subheader("🚨 安全庫存叫貨表")
+        
+        # 確保數值型別正確，並改抓倉庫數量
+        df_inv["安全庫存"] = pd.to_numeric(df_inv["安全庫存"], errors='coerce').fillna(0)
+        df_inv["倉庫數量"] = pd.to_numeric(df_inv["倉庫數量"], errors='coerce').fillna(0)
+        
+        # 篩選出倉庫數量 < 安全庫存的項目
+        reorder_df = df_inv[df_inv["倉庫數量"] < df_inv["安全庫存"]].copy()
+        
+        if not reorder_df.empty:
+            st.warning("⚠️ 以下刀具「倉庫數量」低於安全庫存，請確認是否叫貨：")
+            # 顯示表格，改顯示倉庫數量
+            display_df = reorder_df[["分類", "品名規格", "倉庫數量", "安全庫存"]].copy()
+            display_df["叫貨數量"] = "" 
+            
+            st.dataframe(display_df, use_container_width=True, hide_index=True)
+            st.info("💡 提示：您可以直接複製上方表格，貼至 Excel 或通訊軟體回報給廠商。")
+        else:
+            st.success("✅ 目前所有刀具倉庫存皆高於安全庫存，無需叫貨。")
+        # ----------------------------------------
+
+
+
         st.divider()
         st.subheader("⚙️ 選擇目標刀具")
         
