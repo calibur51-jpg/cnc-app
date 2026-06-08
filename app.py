@@ -127,9 +127,9 @@ with t1:
         idx = tool_info.index[0]
         t_sel = tool_info.loc[idx, "刀具編號"]
         cur_stock = int(tool_info.loc[idx, "架上"])
-   try:
+        try:
         warehouse_stock = int(float(tool_info["倉庫數量"]))
-   except:
+        except:
         warehouse_stock = 0
         st.info(f"編號:{t_sel} | 架上:{cur_stock} 支")
     else:
