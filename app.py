@@ -168,7 +168,7 @@ with t1:
                         st.session_state.data[0].loc[idx, "架上"] -= qty
                         st.session_state["q_val"] = 1
                         # 成功訊息儲存至記憶體
-                        st.session_state["notify_msg"] = f"✅ 已領刀：{t_name} x {qty}"
+                        st.session_state["notify_msg"] = f"✅ 已領刀不要再按了：{t_name} x {qty}"
                         st.rerun() 
                     else:
                         msg_area.error(f"❌ 寫入失敗")
