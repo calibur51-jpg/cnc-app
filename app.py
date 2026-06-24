@@ -295,7 +295,7 @@ with t2:
     else:
         st.info("請輸入管理員密碼以存取管理功能")
 with t3:
-    st.header("📊 刀具管理戰情室")
+    st.header("📊 刀具紀錄與查詢")
     pw = st.text_input("輸入管理員密碼", type="password", key="pw_t3")
     
     if pw == "1234":
