@@ -653,6 +653,32 @@ with t5:
                 })
 
             comparison_df = pd.DataFrame(comparison_rows)
+            comparison_export = pd.DataFrame([
+                {
+                    "項目": "消耗金額",
+                    "本月": this_values["消耗金額"],
+                    "上月": prev_values["消耗金額"],
+                    "增減(%)": None if prev_values["消耗金額"] == 0 else (this_values["消耗金額"] - prev_values["消耗金額"]) / prev_values["消耗金額"],
+                },
+                {
+                    "項目": "消耗數量",
+                    "本月": this_values["消耗數量"],
+                    "上月": prev_values["消耗數量"],
+                    "增減(%)": None if prev_values["消耗數量"] == 0 else (this_values["消耗數量"] - prev_values["消耗數量"]) / prev_values["消耗數量"],
+                },
+                {
+                    "項目": "採購金額",
+                    "本月": this_values["採購金額"],
+                    "上月": prev_values["採購金額"],
+                    "增減(%)": None if prev_values["採購金額"] == 0 else (this_values["採購金額"] - prev_values["採購金額"]) / prev_values["採購金額"],
+                },
+                {
+                    "項目": "目前庫存金額",
+                    "本月": this_values["目前庫存金額"],
+                    "上月": prev_values["目前庫存金額"],
+                    "增減(%)": None if prev_values["目前庫存金額"] == 0 else (this_values["目前庫存金額"] - prev_values["目前庫存金額"]) / prev_values["目前庫存金額"],
+                },
+            ])
 
             st.subheader("月對月比較")
             st.caption(f"{selected_month} 與 {previous_month} 比較")
@@ -714,17 +740,75 @@ with t5:
                 else:
                     st.dataframe(abnormal_usage, use_container_width=True, hide_index=True)
 
-            def get_boss_report_excel(comparison, abnormal):
+            def get_boss_report_excel(summary_month, comparison_raw, comparison_display, top10_df, trend_df_in, abnormal_df):
                 buffer = io.BytesIO()
+                from openpyxl.styles import Font, PatternFill, Alignment
+                from openpyxl.utils import get_column_letter
+
+                def style_sheet(ws, money_cols=None, qty_cols=None, percent_cols=None):
+                    money_cols = money_cols or []
+                    qty_cols = qty_cols or []
+                    percent_cols = percent_cols or []
+
+                    header_fill = PatternFill(start_color="1F497D", end_color="1F497D", fill_type="solid")
+                    header_font = Font(name="Microsoft JhengHei", size=11, bold=True, color="FFFFFF")
+                    for cell in ws[1]:
+                        cell.fill = header_fill
+                        cell.font = header_font
+                        cell.alignment = Alignment(horizontal="center", vertical="center")
+
+                    for col_cells in ws.iter_cols(min_row=2):
+                        col_letter = get_column_letter(col_cells[0].column)
+                        max_len = 0
+                        for cell in col_cells:
+                            if cell.value is not None:
+                                max_len = max(max_len, len(str(cell.value)))
+                        ws.column_dimensions[col_letter].width = min(max(max_len + 2, 12), 28)
+
+                    for col_idx in money_cols:
+                        for cell in ws.iter_cols(min_col=col_idx, max_col=col_idx, min_row=2):
+                            for c in cell:
+                                c.number_format = '$#,##0'
+
+                    for col_idx in qty_cols:
+                        for cell in ws.iter_cols(min_col=col_idx, max_col=col_idx, min_row=2):
+                            for c in cell:
+                                c.number_format = '#,##0'
+
+                    for col_idx in percent_cols:
+                        for cell in ws.iter_cols(min_col=col_idx, max_col=col_idx, min_row=2):
+                            for c in cell:
+                                c.number_format = '0.0%'
+
                 with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-                    comparison.to_excel(writer, sheet_name="月對月比較", index=False)
-                    abnormal.to_excel(writer, sheet_name="異常消耗", index=False)
+                    summary_df = pd.DataFrame(
+                        [
+                            ["月份", summary_month],
+                            ["本月消耗金額", this_values["消耗金額"]],
+                            ["本月消耗數量", this_values["消耗數量"]],
+                            ["本月採購金額", this_values["採購金額"]],
+                            ["本月目前庫存金額", this_values["目前庫存金額"]],
+                        ],
+                        columns=["項目", "數值"],
+                    )
+                    summary_df.to_excel(writer, sheet_name="月報摘要", index=False)
+                    comparison_raw.to_excel(writer, sheet_name="月對月比較", index=False)
+                    top10_df.to_excel(writer, sheet_name="TOP10消耗", index=False)
+                    trend_df_in.reset_index().to_excel(writer, sheet_name="12個月趨勢", index=False)
+                    abnormal_df.to_excel(writer, sheet_name="異常消耗", index=False)
+
+                    style_sheet(writer.sheets["月報摘要"])
+                    style_sheet(writer.sheets["月對月比較"], money_cols=[2, 3], percent_cols=[4])
+                    style_sheet(writer.sheets["TOP10消耗"], qty_cols=[2], money_cols=[3])
+                    style_sheet(writer.sheets["12個月趨勢"], money_cols=[2, 3])
+                    style_sheet(writer.sheets["異常消耗"], qty_cols=[2], money_cols=[3])
+
                 buffer.seek(0)
                 return buffer
 
             st.download_button(
                 "📥 下載老闆月報 Excel",
-                get_boss_report_excel(comparison_df, abnormal_usage).getvalue(),
+                get_boss_report_excel(selected_month, comparison_export, comparison_df, top10_usage if 'top10_usage' in locals() else pd.DataFrame(columns=["品名規格", "本月領用數量", "推估消耗金額"]), trend_df, abnormal_usage).getvalue(),
                 f"老闆月報_{selected_month}.xlsx",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
