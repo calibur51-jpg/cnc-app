@@ -556,7 +556,6 @@ with t5:
 
             df_inv_report["架上"] = pd.to_numeric(df_inv_report["架上"], errors="coerce").fillna(0)
             df_inv_report["倉庫數量"] = pd.to_numeric(df_inv_report["倉庫數量"], errors="coerce").fillna(0)
-            df_inv_report["安全庫存"] = pd.to_numeric(df_inv_report["安全庫存"], errors="coerce").fillna(0)
             df_inv_report["單價"] = pd.to_numeric(df_inv_report["單價"], errors="coerce").fillna(0)
             df_inv_report["總庫存"] = df_inv_report["架上"] + df_inv_report["倉庫數量"]
             df_inv_report["庫存金額"] = df_inv_report["總庫存"] * df_inv_report["單價"]
@@ -568,90 +567,129 @@ with t5:
 
             selected_month = st.selectbox("選擇月份", month_options, index=0, key="t5_month")
             df_month = df_log_report[df_log_report["月份"] == selected_month].copy()
+            previous_month = (pd.Period(selected_month, freq="M") - 1).strftime("%Y-%m")
+            df_prev_month = df_log_report[df_log_report["月份"] == previous_month].copy()
 
             tool_name_map = df_inv_report.set_index("刀具編號")["品名規格"].to_dict()
             price_map = df_inv_report.set_index("刀具編號")["單價"].to_dict()
-            df_month["品名規格"] = df_month["刀具編號"].map(tool_name_map).fillna(df_month["刀具編號"])
-            df_month["計算單價"] = df_month["價格"]
-            df_month.loc[df_month["計算單價"] <= 0, "計算單價"] = df_month.loc[df_month["計算單價"] <= 0, "刀具編號"].map(price_map).fillna(0)
-            df_month["金額"] = df_month["數量"] * df_month["計算單價"]
 
-            df_purchase = df_month[df_month["動作"] == "進貨"].copy()
+            def enrich_log(df):
+                df = df.copy()
+                if df.empty:
+                    df["品名規格"] = []
+                    df["計算單價"] = []
+                    df["金額"] = []
+                    return df
+
+                df["品名規格"] = df["刀具編號"].map(tool_name_map).fillna(df["刀具編號"])
+                df["計算單價"] = df["價格"]
+                df.loc[df["計算單價"] <= 0, "計算單價"] = df.loc[df["計算單價"] <= 0, "刀具編號"].map(price_map).fillna(0)
+                df["金額"] = df["數量"] * df["計算單價"]
+                return df
+
+            df_month = enrich_log(df_month)
+            df_prev_month = enrich_log(df_prev_month)
+
+            def month_values(df):
+                df_purchase = df[df["動作"] == "進貨"].copy()
+                df_usage = df[df["動作"] == "領用"].copy()
+                return {
+                    "消耗金額": int(df_usage["金額"].sum()) if not df_usage.empty else 0,
+                    "消耗數量": int(df_usage["數量"].sum()) if not df_usage.empty else 0,
+                    "採購金額": int(df_purchase["金額"].sum()) if not df_purchase.empty else 0,
+                }
+
+            this_values = month_values(df_month)
+            prev_values = month_values(df_prev_month)
+
+            def estimate_inventory_value(month):
+                stock_map = df_inv_report.set_index("刀具編號")["總庫存"].to_dict()
+                future_logs = df_log_report[df_log_report["月份"] > month].copy()
+                for _, row in future_logs.iterrows():
+                    tool_id = row.get("刀具編號")
+                    qty = pd.to_numeric(row.get("數量"), errors="coerce")
+                    if pd.isna(qty) or tool_id not in stock_map:
+                        continue
+                    if row.get("動作") == "進貨":
+                        stock_map[tool_id] = stock_map.get(tool_id, 0) - qty
+                    elif row.get("動作") == "領用":
+                        stock_map[tool_id] = stock_map.get(tool_id, 0) + qty
+
+                total_value = 0
+                for tool_id, stock_qty in stock_map.items():
+                    total_value += max(stock_qty, 0) * price_map.get(tool_id, 0)
+                return int(total_value)
+
+            this_inventory_value = estimate_inventory_value(selected_month)
+            prev_inventory_value = estimate_inventory_value(previous_month)
+            this_values["目前庫存金額"] = this_inventory_value
+            prev_values["目前庫存金額"] = prev_inventory_value
+
+            def format_money(value):
+                return f"${int(value):,}"
+
+            def format_qty(value):
+                return f"{int(value):,}"
+
+            def format_change(now, before):
+                if before == 0:
+                    if now == 0:
+                        return "0%"
+                    return "新增"
+                change = (now - before) / before * 100
+                sign = "+" if change > 0 else ""
+                return f"{sign}{change:.1f}%"
+
+            comparison_rows = []
+            for item in ["消耗金額", "消耗數量", "採購金額", "目前庫存金額"]:
+                now = this_values[item]
+                before = prev_values[item]
+                formatter = format_qty if item == "消耗數量" else format_money
+                comparison_rows.append({
+                    "項目": item,
+                    "本月": formatter(now),
+                    "上月": formatter(before),
+                    "增減": format_change(now, before),
+                })
+
+            comparison_df = pd.DataFrame(comparison_rows)
+
+            st.subheader("月對月比較")
+            st.caption(f"{selected_month} 與 {previous_month} 比較")
+            st.dataframe(comparison_df, use_container_width=True, hide_index=True)
+
+            st.divider()
+            st.subheader("異常消耗")
             df_usage = df_month[df_month["動作"] == "領用"].copy()
-            df_abnormal = df_usage[df_usage["原因類型"].astype(str).str.contains("異常", na=False)].copy() if "原因類型" in df_usage.columns else pd.DataFrame()
-            low_stock_df = df_inv_report[df_inv_report["總庫存"] <= df_inv_report["安全庫存"]].copy()
-
-            purchase_total = int(df_purchase["金額"].sum()) if not df_purchase.empty else 0
-            usage_qty = int(df_usage["數量"].sum()) if not df_usage.empty else 0
-            abnormal_qty = int(df_abnormal["數量"].sum()) if not df_abnormal.empty else 0
-            inventory_value = int(df_inv_report["庫存金額"].sum())
-
-            c1, c2, c3, c4, c5 = st.columns(5)
-            c1.metric("本月新購金額", f"${purchase_total:,}")
-            c2.metric("本月領用數量", f"{usage_qty:,}")
-            c3.metric("異常損耗數量", f"{abnormal_qty:,}")
-            c4.metric("庫存總價值", f"${inventory_value:,}")
-            c5.metric("低於安全庫存", f"{len(low_stock_df):,} 項")
-
-            st.divider()
-
-            left, right = st.columns(2)
-            with left:
-                st.subheader("本月領用排行")
-                if df_usage.empty:
-                    st.info("本月尚無領用紀錄")
-                else:
-                    usage_rank = df_usage.groupby("品名規格", as_index=False)["數量"].sum().sort_values("數量", ascending=False).head(10)
-                    st.dataframe(usage_rank, use_container_width=True, hide_index=True)
-                    st.bar_chart(usage_rank.set_index("品名規格")["數量"])
-
-            with right:
-                st.subheader("本月人員排行")
-                if df_usage.empty or "經辦人員" not in df_usage.columns:
-                    st.info("本月尚無人員領用資料")
-                else:
-                    user_rank = df_usage.groupby("經辦人員", as_index=False)["數量"].sum().sort_values("數量", ascending=False).head(10)
-                    st.dataframe(user_rank, use_container_width=True, hide_index=True)
-                    st.bar_chart(user_rank.set_index("經辦人員")["數量"])
-
-            st.divider()
-            st.subheader("需要注意的庫存")
-            if low_stock_df.empty:
-                st.success("目前沒有低於安全庫存的刀具")
+            if df_usage.empty:
+                st.info("本月尚無領用紀錄")
+                abnormal_usage = pd.DataFrame(columns=["品名規格", "本月領用數量", "推估消耗金額"])
             else:
-                st.dataframe(
-                    low_stock_df[["分類", "品名規格", "架上", "倉庫數量", "總庫存", "安全庫存", "單價", "庫存金額"]],
-                    use_container_width=True,
-                    hide_index=True
+                abnormal_usage = (
+                    df_usage.groupby("品名規格", as_index=False)
+                    .agg(本月領用數量=("數量", "sum"), 推估消耗金額=("金額", "sum"))
+                    .sort_values("本月領用數量", ascending=False)
                 )
+                abnormal_usage = abnormal_usage[abnormal_usage["本月領用數量"] > 20].copy()
+                abnormal_usage["本月領用數量"] = abnormal_usage["本月領用數量"].astype(int)
+                abnormal_usage["推估消耗金額"] = abnormal_usage["推估消耗金額"].round(0).astype(int)
 
-            st.divider()
-            st.subheader("本月明細")
-            show_cols = ["時間", "動作", "品名規格", "數量", "經辦人員", "原因類型", "工單號碼", "金額"]
-            show_cols = [col for col in show_cols if col in df_month.columns]
-            df_month_display = df_month.sort_values(by="時間", ascending=False)[show_cols]
-            st.dataframe(df_month_display, use_container_width=True, hide_index=True)
+                if abnormal_usage.empty:
+                    st.success("本月沒有單項領用超過 20 支的刀具")
+                else:
+                    st.dataframe(abnormal_usage, use_container_width=True, hide_index=True)
 
-            def get_boss_report_excel(month_detail, low_stock):
+            def get_boss_report_excel(comparison, abnormal):
                 buffer = io.BytesIO()
                 with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-                    summary_df = pd.DataFrame([
-                        ["月份", selected_month],
-                        ["本月新購金額", purchase_total],
-                        ["本月領用數量", usage_qty],
-                        ["異常損耗數量", abnormal_qty],
-                        ["庫存總價值", inventory_value],
-                        ["低於安全庫存項目", len(low_stock_df)],
-                    ], columns=["項目", "數值"])
-                    summary_df.to_excel(writer, sheet_name="月報摘要", index=False)
-                    month_detail.to_excel(writer, sheet_name="本月明細", index=False)
-                    low_stock.to_excel(writer, sheet_name="庫存注意", index=False)
+                    comparison.to_excel(writer, sheet_name="月對月比較", index=False)
+                    abnormal.to_excel(writer, sheet_name="異常消耗", index=False)
                 buffer.seek(0)
                 return buffer
 
             st.download_button(
                 "📥 下載老闆月報 Excel",
-                get_boss_report_excel(df_month_display, low_stock_df).getvalue(),
+                get_boss_report_excel(comparison_df, abnormal_usage).getvalue(),
                 f"老闆月報_{selected_month}.xlsx",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
