@@ -535,7 +535,7 @@ with t4:
             del st.session_state.success_msg
 
 with t5:
-    st.header("📈 老闆月報")
+    st.header("📈 月報")
     pw = st.text_input("輸入管理員密碼", type="password", key="pw_t5")
 
     if pw == "1234":
@@ -935,7 +935,7 @@ with t5:
                 return buffer
 
             st.download_button(
-                "📥 下載老闆月報 PowerPoint",
+                "📥 下載月報 PowerPoint",
                 get_boss_report_pptx(
                     selected_month,
                     comparison_df,
