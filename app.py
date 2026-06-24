@@ -86,7 +86,7 @@ if "data" not in st.session_state:
 
 df_inv, df_log, df_set = st.session_state.data
 
-t1, t2, t3, t4 = st.tabs(["領用", "後台", "紀錄", "進貨與盤點系統"])
+t1, t2, t3, t4, t5 = st.tabs(["領用", "後台", "紀錄", "進貨與盤點系統", "老闆月報"])
 with t1:
     st.header("🔪 刀具領用")
     _, df_log, df_set = st.session_state.data
@@ -533,8 +533,129 @@ with t4:
         if "success_msg" in st.session_state:
             st.success(st.session_state.success_msg)
             del st.session_state.success_msg
-                
-        if "success_msg" in st.session_state:
-            st.success(st.session_state.success_msg)
-            del st.session_state.success_msg
+
+with t5:
+    st.header("📈 老闆月報")
+    pw = st.text_input("輸入管理員密碼", type="password", key="pw_t5")
+
+    if pw == "1234":
+        df_inv_report = st.session_state.data[0].copy()
+        df_log_report = st.session_state.data[1].copy()
+
+        if df_log_report.empty:
+            st.info("目前尚無紀錄資料")
+        else:
+            df_log_report["時間"] = df_log_report["時間"].astype(str).str.replace("下午", " PM").str.replace("上午", " AM")
+            df_log_report["時間"] = pd.to_datetime(df_log_report["時間"], errors="coerce")
+            df_log_report["月份"] = df_log_report["時間"].dt.strftime("%Y-%m").fillna("未分類")
+            df_log_report["數量"] = pd.to_numeric(df_log_report["數量"], errors="coerce").fillna(0)
+
+            if "價格" not in df_log_report.columns:
+                df_log_report["價格"] = 0
+            df_log_report["價格"] = pd.to_numeric(df_log_report["價格"], errors="coerce").fillna(0)
+
+            df_inv_report["架上"] = pd.to_numeric(df_inv_report["架上"], errors="coerce").fillna(0)
+            df_inv_report["倉庫數量"] = pd.to_numeric(df_inv_report["倉庫數量"], errors="coerce").fillna(0)
+            df_inv_report["安全庫存"] = pd.to_numeric(df_inv_report["安全庫存"], errors="coerce").fillna(0)
+            df_inv_report["單價"] = pd.to_numeric(df_inv_report["單價"], errors="coerce").fillna(0)
+            df_inv_report["總庫存"] = df_inv_report["架上"] + df_inv_report["倉庫數量"]
+            df_inv_report["庫存金額"] = df_inv_report["總庫存"] * df_inv_report["單價"]
+
+            month_options = sorted([m for m in df_log_report["月份"].dropna().unique().tolist() if m != "未分類"], reverse=True)
+            current_month = datetime.datetime.now().strftime("%Y-%m")
+            if current_month not in month_options:
+                month_options.insert(0, current_month)
+
+            selected_month = st.selectbox("選擇月份", month_options, index=0, key="t5_month")
+            df_month = df_log_report[df_log_report["月份"] == selected_month].copy()
+
+            tool_name_map = df_inv_report.set_index("刀具編號")["品名規格"].to_dict()
+            price_map = df_inv_report.set_index("刀具編號")["單價"].to_dict()
+            df_month["品名規格"] = df_month["刀具編號"].map(tool_name_map).fillna(df_month["刀具編號"])
+            df_month["計算單價"] = df_month["價格"]
+            df_month.loc[df_month["計算單價"] <= 0, "計算單價"] = df_month.loc[df_month["計算單價"] <= 0, "刀具編號"].map(price_map).fillna(0)
+            df_month["金額"] = df_month["數量"] * df_month["計算單價"]
+
+            df_purchase = df_month[df_month["動作"] == "進貨"].copy()
+            df_usage = df_month[df_month["動作"] == "領用"].copy()
+            df_abnormal = df_usage[df_usage["原因類型"].astype(str).str.contains("異常", na=False)].copy() if "原因類型" in df_usage.columns else pd.DataFrame()
+            low_stock_df = df_inv_report[df_inv_report["總庫存"] <= df_inv_report["安全庫存"]].copy()
+
+            purchase_total = int(df_purchase["金額"].sum()) if not df_purchase.empty else 0
+            usage_qty = int(df_usage["數量"].sum()) if not df_usage.empty else 0
+            abnormal_qty = int(df_abnormal["數量"].sum()) if not df_abnormal.empty else 0
+            inventory_value = int(df_inv_report["庫存金額"].sum())
+
+            c1, c2, c3, c4, c5 = st.columns(5)
+            c1.metric("本月新購金額", f"${purchase_total:,}")
+            c2.metric("本月領用數量", f"{usage_qty:,}")
+            c3.metric("異常損耗數量", f"{abnormal_qty:,}")
+            c4.metric("庫存總價值", f"${inventory_value:,}")
+            c5.metric("低於安全庫存", f"{len(low_stock_df):,} 項")
+
+            st.divider()
+
+            left, right = st.columns(2)
+            with left:
+                st.subheader("本月領用排行")
+                if df_usage.empty:
+                    st.info("本月尚無領用紀錄")
+                else:
+                    usage_rank = df_usage.groupby("品名規格", as_index=False)["數量"].sum().sort_values("數量", ascending=False).head(10)
+                    st.dataframe(usage_rank, use_container_width=True, hide_index=True)
+                    st.bar_chart(usage_rank.set_index("品名規格")["數量"])
+
+            with right:
+                st.subheader("本月人員排行")
+                if df_usage.empty or "經辦人員" not in df_usage.columns:
+                    st.info("本月尚無人員領用資料")
+                else:
+                    user_rank = df_usage.groupby("經辦人員", as_index=False)["數量"].sum().sort_values("數量", ascending=False).head(10)
+                    st.dataframe(user_rank, use_container_width=True, hide_index=True)
+                    st.bar_chart(user_rank.set_index("經辦人員")["數量"])
+
+            st.divider()
+            st.subheader("需要注意的庫存")
+            if low_stock_df.empty:
+                st.success("目前沒有低於安全庫存的刀具")
+            else:
+                st.dataframe(
+                    low_stock_df[["分類", "品名規格", "架上", "倉庫數量", "總庫存", "安全庫存", "單價", "庫存金額"]],
+                    use_container_width=True,
+                    hide_index=True
+                )
+
+            st.divider()
+            st.subheader("本月明細")
+            show_cols = ["時間", "動作", "品名規格", "數量", "經辦人員", "原因類型", "工單號碼", "金額"]
+            show_cols = [col for col in show_cols if col in df_month.columns]
+            df_month_display = df_month.sort_values(by="時間", ascending=False)[show_cols]
+            st.dataframe(df_month_display, use_container_width=True, hide_index=True)
+
+            def get_boss_report_excel(month_detail, low_stock):
+                buffer = io.BytesIO()
+                with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+                    summary_df = pd.DataFrame([
+                        ["月份", selected_month],
+                        ["本月新購金額", purchase_total],
+                        ["本月領用數量", usage_qty],
+                        ["異常損耗數量", abnormal_qty],
+                        ["庫存總價值", inventory_value],
+                        ["低於安全庫存項目", len(low_stock_df)],
+                    ], columns=["項目", "數值"])
+                    summary_df.to_excel(writer, sheet_name="月報摘要", index=False)
+                    month_detail.to_excel(writer, sheet_name="本月明細", index=False)
+                    low_stock.to_excel(writer, sheet_name="庫存注意", index=False)
+                buffer.seek(0)
+                return buffer
+
+            st.download_button(
+                "📥 下載老闆月報 Excel",
+                get_boss_report_excel(df_month_display, low_stock_df).getvalue(),
+                f"老闆月報_{selected_month}.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+
+    elif pw != "":
+        st.warning("⚠️ 密碼錯誤")
 
