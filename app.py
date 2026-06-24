@@ -653,32 +653,6 @@ with t5:
                 })
 
             comparison_df = pd.DataFrame(comparison_rows)
-            comparison_export = pd.DataFrame([
-                {
-                    "項目": "消耗金額",
-                    "本月": this_values["消耗金額"],
-                    "上月": prev_values["消耗金額"],
-                    "增減(%)": None if prev_values["消耗金額"] == 0 else (this_values["消耗金額"] - prev_values["消耗金額"]) / prev_values["消耗金額"],
-                },
-                {
-                    "項目": "消耗數量",
-                    "本月": this_values["消耗數量"],
-                    "上月": prev_values["消耗數量"],
-                    "增減(%)": None if prev_values["消耗數量"] == 0 else (this_values["消耗數量"] - prev_values["消耗數量"]) / prev_values["消耗數量"],
-                },
-                {
-                    "項目": "採購金額",
-                    "本月": this_values["採購金額"],
-                    "上月": prev_values["採購金額"],
-                    "增減(%)": None if prev_values["採購金額"] == 0 else (this_values["採購金額"] - prev_values["採購金額"]) / prev_values["採購金額"],
-                },
-                {
-                    "項目": "目前庫存金額",
-                    "本月": this_values["目前庫存金額"],
-                    "上月": prev_values["目前庫存金額"],
-                    "增減(%)": None if prev_values["目前庫存金額"] == 0 else (this_values["目前庫存金額"] - prev_values["目前庫存金額"]) / prev_values["目前庫存金額"],
-                },
-            ])
 
             st.subheader("月對月比較")
             st.caption(f"{selected_month} 與 {previous_month} 比較")
@@ -686,6 +660,7 @@ with t5:
 
             st.divider()
             df_usage = df_month[df_month["動作"] == "領用"].copy()
+            top10_usage = pd.DataFrame(columns=["品名規格", "本月領用數量", "推估消耗金額"])
 
             left_col, right_col = st.columns([1, 1.25])
             with left_col:
@@ -740,87 +715,236 @@ with t5:
                 else:
                     st.dataframe(abnormal_usage, use_container_width=True, hide_index=True)
 
-            def get_boss_report_excel(summary_month, comparison_raw, comparison_display, top10_df, trend_df_in, abnormal_df):
+            def get_boss_report_pptx(summary_month, comparison_display, top10_df, trend_df_in, abnormal_df):
                 buffer = io.BytesIO()
-                from openpyxl.styles import Font, PatternFill, Alignment
-                from openpyxl.utils import get_column_letter
+                from pptx import Presentation
+                from pptx.chart.data import CategoryChartData
+                from pptx.dml.color import RGBColor
+                from pptx.enum.chart import XL_CHART_TYPE, XL_LEGEND_POSITION
+                from pptx.enum.shapes import MSO_SHAPE
+                from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
+                from pptx.util import Inches, Pt
 
-                def style_sheet(ws, money_cols=None, qty_cols=None, percent_cols=None):
-                    money_cols = money_cols or []
-                    qty_cols = qty_cols or []
-                    percent_cols = percent_cols or []
+                prs = Presentation()
+                prs.slide_width = Inches(11.69)
+                prs.slide_height = Inches(8.27)
 
-                    header_fill = PatternFill(start_color="1F497D", end_color="1F497D", fill_type="solid")
-                    header_font = Font(name="Microsoft JhengHei", size=11, bold=True, color="FFFFFF")
-                    for cell in ws[1]:
-                        cell.fill = header_fill
-                        cell.font = header_font
-                        cell.alignment = Alignment(horizontal="center", vertical="center")
+                def set_bg(slide, color="F7F8FB"):
+                    fill = slide.background.fill
+                    fill.solid()
+                    fill.fore_color.rgb = RGBColor.from_string(color)
 
-                    max_col = ws.max_column or 0
-                    max_row = ws.max_row or 0
-                    for col_idx in range(1, max_col + 1):
-                        max_len = 0
-                        for row_idx in range(1, max_row + 1):
-                            cell = ws.cell(row=row_idx, column=col_idx)
-                            if cell.value is not None:
-                                max_len = max(max_len, len(str(cell.value)))
-                        col_letter = get_column_letter(col_idx)
-                        ws.column_dimensions[col_letter].width = min(max(max_len + 2, 12), 28)
+                def add_text(slide, left, top, width, height, text, size=14, bold=False, color="1F1F1F", align=PP_ALIGN.LEFT):
+                    box = slide.shapes.add_textbox(left, top, width, height)
+                    tf = box.text_frame
+                    tf.clear()
+                    p = tf.paragraphs[0]
+                    run = p.add_run()
+                    run.text = text
+                    run.font.name = "Microsoft JhengHei"
+                    run.font.size = Pt(size)
+                    run.font.bold = bold
+                    run.font.color.rgb = RGBColor.from_string(color)
+                    p.alignment = align
+                    return box
 
-                    for col_idx in money_cols:
-                        for cell in ws.iter_cols(min_col=col_idx, max_col=col_idx, min_row=2):
-                            for c in cell:
-                                c.number_format = '$#,##0'
+                def add_card(slide, left, top, width, height, title, value, delta_text):
+                    shape = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, left, top, width, height)
+                    shape.fill.solid()
+                    shape.fill.fore_color.rgb = RGBColor.from_string("FFFFFF")
+                    shape.line.color.rgb = RGBColor.from_string("D9DEE8")
+                    shape.line.width = Pt(1)
+                    tf = shape.text_frame
+                    tf.clear()
+                    tf.margin_left = Pt(8)
+                    tf.margin_right = Pt(8)
+                    tf.margin_top = Pt(4)
+                    tf.margin_bottom = Pt(4)
+                    p1 = tf.paragraphs[0]
+                    r1 = p1.add_run()
+                    r1.text = title
+                    r1.font.name = "Microsoft JhengHei"
+                    r1.font.size = Pt(10)
+                    r1.font.bold = True
+                    r1.font.color.rgb = RGBColor.from_string("4B5563")
+                    p1.alignment = PP_ALIGN.LEFT
+                    p2 = tf.add_paragraph()
+                    r2 = p2.add_run()
+                    r2.text = value
+                    r2.font.name = "Microsoft JhengHei"
+                    r2.font.size = Pt(18)
+                    r2.font.bold = True
+                    r2.font.color.rgb = RGBColor.from_string("111827")
+                    p2.alignment = PP_ALIGN.LEFT
+                    p3 = tf.add_paragraph()
+                    r3 = p3.add_run()
+                    r3.text = delta_text
+                    r3.font.name = "Microsoft JhengHei"
+                    r3.font.size = Pt(9)
+                    r3.font.color.rgb = RGBColor.from_string("2563EB" if delta_text.startswith("+") else "DC2626" if delta_text.startswith("-") else "6B7280")
+                    p3.alignment = PP_ALIGN.LEFT
+                    return shape
 
-                    for col_idx in qty_cols:
-                        for cell in ws.iter_cols(min_col=col_idx, max_col=col_idx, min_row=2):
-                            for c in cell:
-                                c.number_format = '#,##0'
+                def add_panel_title(slide, left, top, width, text):
+                    add_text(slide, left, top, width, Inches(0.25), text, size=13, bold=True, color="111827")
 
-                    for col_idx in percent_cols:
-                        for cell in ws.iter_cols(min_col=col_idx, max_col=col_idx, min_row=2):
-                            for c in cell:
-                                c.number_format = '0.0%'
+                def format_money_num(v):
+                    return f"{int(v):,}"
 
-                with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-                    summary_df = pd.DataFrame(
-                        [
-                            ["月份", summary_month],
-                            ["本月消耗金額", this_values["消耗金額"]],
-                            ["本月消耗數量", this_values["消耗數量"]],
-                            ["本月採購金額", this_values["採購金額"]],
-                            ["本月目前庫存金額", this_values["目前庫存金額"]],
-                        ],
-                        columns=["項目", "數值"],
-                    )
-                    summary_df.to_excel(writer, sheet_name="月報摘要", index=False)
-                    comparison_raw.to_excel(writer, sheet_name="月對月比較", index=False)
-                    top10_df.to_excel(writer, sheet_name="TOP10消耗", index=False)
-                    trend_df_in.reset_index().to_excel(writer, sheet_name="12個月趨勢", index=False)
-                    abnormal_df.to_excel(writer, sheet_name="異常消耗", index=False)
+                def format_percent(v):
+                    if v is None:
+                        return "-"
+                    return f"{v * 100:+.1f}%"
 
-                    style_sheet(writer.sheets["月報摘要"])
-                    style_sheet(writer.sheets["月對月比較"], money_cols=[2, 3], percent_cols=[4])
-                    style_sheet(writer.sheets["TOP10消耗"], qty_cols=[2], money_cols=[3])
-                    style_sheet(writer.sheets["12個月趨勢"], money_cols=[2, 3])
-                    style_sheet(writer.sheets["異常消耗"], qty_cols=[2], money_cols=[3])
+                def build_table(slide, left, top, width, height, df, col_widths=None, font_size=10, header_fill="1F497D"):
+                    rows = max(len(df) + 1, 2)
+                    cols = len(df.columns)
+                    table_shape = slide.shapes.add_table(rows, cols, left, top, width, height)
+                    table = table_shape.table
+                    if col_widths:
+                        for idx, w in enumerate(col_widths):
+                            if idx < len(table.columns):
+                                table.columns[idx].width = Inches(w)
+                    for c, name in enumerate(df.columns):
+                        cell = table.cell(0, c)
+                        cell.text = str(name)
+                        cell.fill.solid()
+                        cell.fill.fore_color.rgb = RGBColor.from_string(header_fill)
+                        for p in cell.text_frame.paragraphs:
+                            p.alignment = PP_ALIGN.CENTER
+                            for r in p.runs:
+                                r.font.name = "Microsoft JhengHei"
+                                r.font.size = Pt(font_size)
+                                r.font.bold = True
+                                r.font.color.rgb = RGBColor.from_string("FFFFFF")
+                    if df.empty:
+                        for c in range(cols):
+                            cell = table.cell(1, c)
+                            cell.text = "無資料" if c == 0 else ""
+                            for p in cell.text_frame.paragraphs:
+                                p.alignment = PP_ALIGN.CENTER
+                                for r in p.runs:
+                                    r.font.name = "Microsoft JhengHei"
+                                    r.font.size = Pt(font_size)
+                                    r.font.color.rgb = RGBColor.from_string("374151")
+                        return table_shape
+                    for r in range(len(df)):
+                        for c, name in enumerate(df.columns):
+                            cell = table.cell(r + 1, c)
+                            val = df.iloc[r, c]
+                            if pd.isna(val):
+                                val = ""
+                            cell.text = str(val)
+                            for p in cell.text_frame.paragraphs:
+                                p.alignment = PP_ALIGN.CENTER if c != 0 else PP_ALIGN.LEFT
+                                for run in p.runs:
+                                    run.font.name = "Microsoft JhengHei"
+                                    run.font.size = Pt(font_size)
+                                    run.font.color.rgb = RGBColor.from_string("111827")
+                    return table_shape
 
+                def add_line_chart(slide, left, top, width, height, chart_df):
+                    chart_data = CategoryChartData()
+                    chart_data.categories = chart_df.index.tolist()
+                    chart_data.add_series("消耗金額", chart_df["消耗金額"].tolist())
+                    chart_data.add_series("採購金額", chart_df["採購金額"].tolist())
+                    chart = slide.shapes.add_chart(XL_CHART_TYPE.LINE_MARKERS, left, top, width, height, chart_data).chart
+                    chart.has_legend = True
+                    chart.legend.position = XL_LEGEND_POSITION.BOTTOM
+                    chart.legend.include_in_layout = False
+                    chart.value_axis.has_major_gridlines = True
+                    chart.category_axis.tick_labels.font.size = Pt(8)
+                    chart.value_axis.tick_labels.font.size = Pt(8)
+                    return chart
+
+                slide1 = prs.slides.add_slide(prs.slide_layouts[6])
+                set_bg(slide1)
+                add_text(slide1, Inches(0.3), Inches(0.12), Inches(7.0), Inches(0.35), "老闆月報", size=22, bold=True, color="111827")
+                add_text(slide1, Inches(0.3), Inches(0.42), Inches(6.8), Inches(0.22), f"月份：{summary_month}   對照：{previous_month}", size=10, color="6B7280")
+
+                card_w = Inches(2.77)
+                card_h = Inches(0.8)
+                card_y = Inches(0.72)
+                card_gap = Inches(0.1)
+                card_xs = [Inches(0.3), Inches(0.3) + card_w + card_gap, Inches(0.3) + (card_w + card_gap) * 2, Inches(0.3) + (card_w + card_gap) * 3]
+                metrics = [
+                    ("消耗金額", this_values["消耗金額"], prev_values["消耗金額"]),
+                    ("消耗數量", this_values["消耗數量"], prev_values["消耗數量"]),
+                    ("採購金額", this_values["採購金額"], prev_values["採購金額"]),
+                    ("目前庫存金額", this_values["目前庫存金額"], prev_values["目前庫存金額"]),
+                ]
+                for idx, (label, now, before) in enumerate(metrics):
+                    delta_txt = format_change(now, before)
+                    value_txt = format_money_num(now) if label != "消耗數量" else f"{int(now):,}"
+                    add_card(slide1, card_xs[idx], card_y, card_w, card_h, label, value_txt, delta_txt)
+
+                add_panel_title(slide1, Inches(0.3), Inches(1.62), Inches(3.2), "月對月比較")
+                build_table(
+                    slide1,
+                    Inches(0.3),
+                    Inches(1.9),
+                    Inches(4.2),
+                    Inches(2.05),
+                    comparison_display,
+                    col_widths=[1.35, 0.95, 0.95, 0.85],
+                    font_size=9,
+                )
+
+                add_panel_title(slide1, Inches(4.75), Inches(1.62), Inches(3.0), "12 個月趨勢圖")
+                add_line_chart(slide1, Inches(4.7), Inches(1.9), Inches(6.65), Inches(2.2), trend_df)
+
+                add_panel_title(slide1, Inches(0.3), Inches(4.08), Inches(2.4), "TOP10 消耗刀具")
+                top10_display = top10_df.copy()
+                if not top10_display.empty:
+                    top10_display["本月領用數量"] = top10_display["本月領用數量"].apply(lambda x: f"{int(x):,}")
+                    top10_display["推估消耗金額"] = top10_display["推估消耗金額"].apply(lambda x: f"${int(x):,}")
+                build_table(
+                    slide1,
+                    Inches(0.3),
+                    Inches(4.35),
+                    Inches(11.05),
+                    Inches(3.5),
+                    top10_display,
+                    col_widths=[6.2, 1.9, 2.0],
+                    font_size=9,
+                )
+
+                slide2 = prs.slides.add_slide(prs.slide_layouts[6])
+                set_bg(slide2)
+                add_text(slide2, Inches(0.3), Inches(0.12), Inches(7.0), Inches(0.35), "異常消耗", size=22, bold=True, color="111827")
+                add_text(slide2, Inches(0.3), Inches(0.42), Inches(7.0), Inches(0.22), f"本月單項領用超過 20 支的刀具", size=10, color="6B7280")
+
+                abnormal_display = abnormal_df.copy()
+                if not abnormal_display.empty:
+                    abnormal_display["本月領用數量"] = abnormal_display["本月領用數量"].apply(lambda x: f"{int(x):,}")
+                    abnormal_display["推估消耗金額"] = abnormal_display["推估消耗金額"].apply(lambda x: f"${int(x):,}")
+                build_table(
+                    slide2,
+                    Inches(0.3),
+                    Inches(0.9),
+                    Inches(11.05),
+                    Inches(6.8),
+                    abnormal_display,
+                    col_widths=[6.8, 2.0, 2.2],
+                    font_size=10,
+                )
+
+                buffer.seek(0)
+                prs.save(buffer)
                 buffer.seek(0)
                 return buffer
 
             st.download_button(
-                "📥 下載老闆月報 Excel",
-                get_boss_report_excel(
+                "📥 下載老闆月報 PowerPoint",
+                get_boss_report_pptx(
                     selected_month,
-                    comparison_export,
                     comparison_df,
-                    top10_usage if "top10_usage" in locals() else pd.DataFrame(columns=["品名規格", "本月領用數量", "推估消耗金額"]),
+                    top10_usage,
                     trend_df,
                     abnormal_usage,
                 ).getvalue(),
-                f"老闆月報_{selected_month}.xlsx",
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                f"老闆月報_{selected_month}.pptx",
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation"
             )
 
     elif pw != "":
