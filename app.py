@@ -659,8 +659,43 @@ with t5:
             st.dataframe(comparison_df, use_container_width=True, hide_index=True)
 
             st.divider()
-            st.subheader("異常消耗")
             df_usage = df_month[df_month["動作"] == "領用"].copy()
+
+            left_col, right_col = st.columns([1, 1.25])
+            with left_col:
+                st.subheader("TOP10 消耗刀具")
+                if df_usage.empty:
+                    st.info("本月尚無領用紀錄")
+                else:
+                    top10_usage = (
+                        df_usage.groupby("品名規格", as_index=False)
+                        .agg(本月領用數量=("數量", "sum"), 推估消耗金額=("金額", "sum"))
+                        .sort_values("本月領用數量", ascending=False)
+                        .head(10)
+                    )
+                    top10_usage["本月領用數量"] = top10_usage["本月領用數量"].astype(int)
+                    top10_usage["推估消耗金額"] = top10_usage["推估消耗金額"].round(0).astype(int)
+                    st.dataframe(top10_usage, use_container_width=True, hide_index=True)
+
+            with right_col:
+                st.subheader("12 個月趨勢圖")
+                trend_months = [p.strftime("%Y-%m") for p in pd.period_range(end=pd.Period(selected_month, freq="M"), periods=12, freq="M")]
+                trend_rows = []
+                for month_key in trend_months:
+                    month_df = enrich_log(df_log_report[df_log_report["月份"] == month_key].copy())
+                    month_purchase = month_df[month_df["動作"] == "進貨"]
+                    month_usage = month_df[month_df["動作"] == "領用"]
+                    trend_rows.append({
+                        "月份": month_key,
+                        "消耗金額": int(month_usage["金額"].sum()) if not month_usage.empty else 0,
+                        "採購金額": int(month_purchase["金額"].sum()) if not month_purchase.empty else 0,
+                    })
+
+                trend_df = pd.DataFrame(trend_rows).set_index("月份")
+                st.line_chart(trend_df[["消耗金額", "採購金額"]], use_container_width=True)
+
+            st.divider()
+            st.subheader("異常消耗")
             if df_usage.empty:
                 st.info("本月尚無領用紀錄")
                 abnormal_usage = pd.DataFrame(columns=["品名規格", "本月領用數量", "推估消耗金額"])
