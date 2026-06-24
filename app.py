@@ -86,7 +86,7 @@ if "data" not in st.session_state:
 
 df_inv, df_log, df_set = st.session_state.data
 
-t1, t2, t3, t4, t5 = st.tabs(["領用", "後台", "紀錄", "進貨與盤點系統", "老闆月報"])
+t1, t2, t3, t4, t5 = st.tabs(["領用", "後台", "紀錄", "進貨與盤點系統", "明星刀具月報"])
 with t1:
     st.header("🔪 刀具領用")
     _, df_log, df_set = st.session_state.data
@@ -535,7 +535,7 @@ with t4:
             del st.session_state.success_msg
 
 with t5:
-    st.header("📈 月報")
+    st.header("📈 明星刀具月報")
     pw = st.text_input("輸入管理員密碼", type="password", key="pw_t5")
 
     if pw == "1234":
@@ -786,7 +786,7 @@ with t5:
                     return shape
 
                 def add_panel_title(slide, left, top, width, text):
-                    add_text(slide, left, top, width, Inches(0.25), text, size=13, bold=True, color="111827")
+                    add_text(slide, left, top, width, Inches(0.22), text, size=11, bold=True, color="111827")
 
                 def format_money_num(v):
                     return f"{int(v):,}"
@@ -859,13 +859,13 @@ with t5:
 
                 slide1 = prs.slides.add_slide(prs.slide_layouts[6])
                 set_bg(slide1)
-                add_text(slide1, Inches(0.3), Inches(0.12), Inches(7.0), Inches(0.35), "老闆月報", size=22, bold=True, color="111827")
-                add_text(slide1, Inches(0.3), Inches(0.42), Inches(6.8), Inches(0.22), f"月份：{summary_month}   對照：{previous_month}", size=10, color="6B7280")
+                add_text(slide1, Inches(0.3), Inches(0.08), Inches(7.0), Inches(0.28), "明星刀具月報", size=18, bold=True, color="111827")
+                add_text(slide1, Inches(0.3), Inches(0.30), Inches(6.8), Inches(0.18), f"月份：{summary_month}   對照：{previous_month}", size=8, color="6B7280")
 
-                card_w = Inches(2.77)
-                card_h = Inches(0.8)
-                card_y = Inches(0.72)
-                card_gap = Inches(0.1)
+                card_w = Inches(2.74)
+                card_h = Inches(0.66)
+                card_y = Inches(0.50)
+                card_gap = Inches(0.08)
                 card_xs = [Inches(0.3), Inches(0.3) + card_w + card_gap, Inches(0.3) + (card_w + card_gap) * 2, Inches(0.3) + (card_w + card_gap) * 3]
                 metrics = [
                     ("消耗金額", this_values["消耗金額"], prev_values["消耗金額"]),
@@ -878,22 +878,22 @@ with t5:
                     value_txt = format_money_num(now) if label != "消耗數量" else f"{int(now):,}"
                     add_card(slide1, card_xs[idx], card_y, card_w, card_h, label, value_txt, delta_txt)
 
-                add_panel_title(slide1, Inches(0.3), Inches(1.62), Inches(3.2), "月對月比較")
+                add_panel_title(slide1, Inches(0.3), Inches(1.30), Inches(3.2), "月對月比較")
                 build_table(
                     slide1,
                     Inches(0.3),
-                    Inches(1.9),
-                    Inches(4.2),
-                    Inches(2.05),
+                    Inches(1.52),
+                    Inches(4.05),
+                    Inches(1.72),
                     comparison_display,
-                    col_widths=[1.35, 0.95, 0.95, 0.85],
-                    font_size=9,
+                    col_widths=[1.32, 0.92, 0.92, 0.85],
+                    font_size=8,
                 )
 
-                add_panel_title(slide1, Inches(4.75), Inches(1.62), Inches(3.0), "12 個月趨勢圖")
-                add_line_chart(slide1, Inches(4.7), Inches(1.9), Inches(6.65), Inches(2.2), trend_df)
+                add_panel_title(slide1, Inches(4.55), Inches(1.30), Inches(3.0), "12 個月趨勢圖")
+                add_line_chart(slide1, Inches(4.55), Inches(1.52), Inches(6.80), Inches(1.95), trend_df)
 
-                add_panel_title(slide1, Inches(0.3), Inches(4.08), Inches(2.4), "TOP10 消耗刀具")
+                add_panel_title(slide1, Inches(0.3), Inches(3.42), Inches(2.4), "TOP10 消耗刀具")
                 top10_display = top10_df.copy()
                 if not top10_display.empty:
                     top10_display["本月領用數量"] = top10_display["本月領用數量"].apply(lambda x: f"{int(x):,}")
@@ -901,18 +901,18 @@ with t5:
                 build_table(
                     slide1,
                     Inches(0.3),
-                    Inches(4.35),
+                    Inches(3.64),
                     Inches(11.05),
-                    Inches(3.5),
+                    Inches(2.95),
                     top10_display,
-                    col_widths=[6.2, 1.9, 2.0],
-                    font_size=9,
+                    col_widths=[6.15, 1.95, 1.95],
+                    font_size=8,
                 )
 
                 slide2 = prs.slides.add_slide(prs.slide_layouts[6])
                 set_bg(slide2)
-                add_text(slide2, Inches(0.3), Inches(0.12), Inches(7.0), Inches(0.35), "異常消耗", size=22, bold=True, color="111827")
-                add_text(slide2, Inches(0.3), Inches(0.42), Inches(7.0), Inches(0.22), f"本月單項領用超過 20 支的刀具", size=10, color="6B7280")
+                add_text(slide2, Inches(0.3), Inches(0.08), Inches(7.0), Inches(0.28), "明星刀具月報 - 異常消耗", size=18, bold=True, color="111827")
+                add_text(slide2, Inches(0.3), Inches(0.30), Inches(7.0), Inches(0.18), f"本月單項領用超過 20 支的刀具", size=8, color="6B7280")
 
                 abnormal_display = abnormal_df.copy()
                 if not abnormal_display.empty:
@@ -921,12 +921,12 @@ with t5:
                 build_table(
                     slide2,
                     Inches(0.3),
-                    Inches(0.9),
+                    Inches(0.55),
                     Inches(11.05),
-                    Inches(6.8),
+                    Inches(7.0),
                     abnormal_display,
                     col_widths=[6.8, 2.0, 2.2],
-                    font_size=10,
+                    font_size=9,
                 )
 
                 buffer.seek(0)
@@ -935,7 +935,7 @@ with t5:
                 return buffer
 
             st.download_button(
-                "📥 下載月報 PowerPoint",
+                "📥 下載明星刀具月報 PowerPoint",
                 get_boss_report_pptx(
                     selected_month,
                     comparison_df,
@@ -943,7 +943,7 @@ with t5:
                     trend_df,
                     abnormal_usage,
                 ).getvalue(),
-                f"老闆月報_{selected_month}.pptx",
+                f"明星刀具月報_{selected_month}.pptx",
                 "application/vnd.openxmlformats-officedocument.presentationml.presentation"
             )
 
