@@ -1,4 +1,4 @@
-import streamlit as st
+﻿import streamlit as st
 import pandas as pd
 import requests
 import time
@@ -367,8 +367,18 @@ with t3:
                 search_wo = st.text_input("🔍 搜尋工單號碼:")
                 if search_wo: df_view = df_view[df_view["工單號碼"].astype(str).str.contains(search_wo, case=False, na=False)]
                 
-                st.dataframe(df_view.sort_values(by="時間", ascending=False), use_container_width=True)
-                st.download_button("📥 下載歷史紀錄精裝版", get_styled_excel(df_view, "紀錄").getvalue(), "歷史紀錄.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                df_view_display = df_view.copy()
+                tool_name_map = df_inv.set_index("刀具編號")["品名規格"].to_dict()
+                df_view_display["品名規格"] = df_view_display["刀具編號"].map(tool_name_map).fillna(df_view_display["刀具編號"])
+                df_view_display = df_view_display.drop(columns=["刀具編號"])
+                
+                cols = df_view_display.columns.tolist()
+                cols.remove("品名規格")
+                cols.insert(2, "品名規格")
+                df_view_display = df_view_display[cols]
+                
+                st.dataframe(df_view_display.sort_values(by="時間", ascending=False), use_container_width=True)
+                st.download_button("📥 下載歷史紀錄精裝版", get_styled_excel(df_view_display, "紀錄").getvalue(), "歷史紀錄.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
     elif pw != "":
         st.warning("⚠️ 密碼錯誤")
@@ -527,3 +537,4 @@ with t4:
         if "success_msg" in st.session_state:
             st.success(st.session_state.success_msg)
             del st.session_state.success_msg
+
