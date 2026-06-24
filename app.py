@@ -757,12 +757,15 @@ with t5:
                         cell.font = header_font
                         cell.alignment = Alignment(horizontal="center", vertical="center")
 
-                    for col_cells in ws.iter_cols(min_row=2):
-                        col_letter = get_column_letter(col_cells[0].column)
+                    max_col = ws.max_column or 0
+                    max_row = ws.max_row or 0
+                    for col_idx in range(1, max_col + 1):
                         max_len = 0
-                        for cell in col_cells:
+                        for row_idx in range(1, max_row + 1):
+                            cell = ws.cell(row=row_idx, column=col_idx)
                             if cell.value is not None:
                                 max_len = max(max_len, len(str(cell.value)))
+                        col_letter = get_column_letter(col_idx)
                         ws.column_dimensions[col_letter].width = min(max(max_len + 2, 12), 28)
 
                     for col_idx in money_cols:
@@ -808,7 +811,14 @@ with t5:
 
             st.download_button(
                 "📥 下載老闆月報 Excel",
-                get_boss_report_excel(selected_month, comparison_export, comparison_df, top10_usage if 'top10_usage' in locals() else pd.DataFrame(columns=["品名規格", "本月領用數量", "推估消耗金額"]), trend_df, abnormal_usage).getvalue(),
+                get_boss_report_excel(
+                    selected_month,
+                    comparison_export,
+                    comparison_df,
+                    top10_usage if "top10_usage" in locals() else pd.DataFrame(columns=["品名規格", "本月領用數量", "推估消耗金額"]),
+                    trend_df,
+                    abnormal_usage,
+                ).getvalue(),
                 f"老闆月報_{selected_month}.xlsx",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
