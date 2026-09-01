@@ -493,7 +493,7 @@ with t4:
                 
             mode = st.radio("選擇操作模式", ["進貨", "上架", "盤點"], horizontal=True)
                 
-                with st.form("t4_action_form", clear_on_submit=True):
+            with st.form("t4_action_form", clear_on_submit=True):
                     qty_input = st.number_input("數量", min_value=0, value=0)
                     price_input = st.number_input("本次單價", min_value=0.0, value=current_price, step=10.0) if mode == "進貨" else current_price
                     u_input = st.text_input("操作人員")
