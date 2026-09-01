@@ -491,7 +491,7 @@ with t4:
             col_b.metric("倉庫", cur_wh)
             col_c.metric("單價", f"${current_price:,.0f}")
                 
-                mode = st.radio("選擇操作模式", ["進貨", "上架", "盤點"], horizontal=True)
+            mode = st.radio("選擇操作模式", ["進貨", "上架", "盤點"], horizontal=True)
                 
                 with st.form("t4_action_form", clear_on_submit=True):
                     qty_input = st.number_input("數量", min_value=0, value=0)
