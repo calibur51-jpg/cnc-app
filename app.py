@@ -473,23 +473,23 @@ with t4:
                 cur_wh = int(pd.to_numeric(tool_info["倉庫數量"], errors='coerce') or 0)
                 # ---------------------------------------------
                 
-# --- 單價安全處理 ---
-raw_price = tool_info.get("單價", 0)
+            # --- 單價安全處理 ---
+            raw_price = tool_info.get("單價", 0)
 
-try:
-    if pd.isna(raw_price) or str(raw_price).strip() == "":
-        current_price = 0.0
-    else:
-        # 處理 Google Sheet 可能出現的 $, 逗號或文字
-        clean_price = str(raw_price).replace(",", "").replace("$", "").strip()
-        current_price = float(clean_price)
-except (ValueError, TypeError):
-    current_price = 0.0
+            try:
+                if pd.isna(raw_price) or str(raw_price).strip() == "":
+                    current_price = 0.0
+                else:
+                    # 處理 Google Sheet 可能出現的 $, 逗號或文字
+                    clean_price = str(raw_price).replace(",", "").replace("$", "").strip()
+                    current_price = float(clean_price)
+            except (ValueError, TypeError):
+                current_price = 0.0
 
-col_a, col_b, col_c = st.columns(3)
-col_a.metric("架上", cur_shelf)
-col_b.metric("倉庫", cur_wh)
-col_c.metric("單價", f"${current_price:,.0f}")
+            col_a, col_b, col_c = st.columns(3)
+            col_a.metric("架上", cur_shelf)
+            col_b.metric("倉庫", cur_wh)
+            col_c.metric("單價", f"${current_price:,.0f}")
                 
                 mode = st.radio("選擇操作模式", ["進貨", "上架", "盤點"], horizontal=True)
                 
