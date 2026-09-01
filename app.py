@@ -465,84 +465,84 @@ with t4:
             sel_tool_name = st.selectbox("搜尋結果", tool_options, key="t4_tool_sel")
             matched_df = df_show[df_show["品名規格"] == sel_tool_name]
             
-           if not matched_df.empty:
-               tool_info = matched_df.iloc[0]
+            if not matched_df.empty:
+                tool_info = matched_df.iloc[0]
 
-               # --- [修補]：強制轉換，處理空值導致的 int() 報錯 ---
-               cur_shelf = int(pd.to_numeric(tool_info["架上"], errors='coerce') or 0)
-               cur_wh = int(pd.to_numeric(tool_info["倉庫數量"], errors='coerce') or 0)
+                # --- [修補]：強制轉換，處理空值導致的 int() 報錯 ---
+                cur_shelf = int(pd.to_numeric(tool_info["架上"], errors='coerce') or 0)
+                cur_wh = int(pd.to_numeric(tool_info["倉庫數量"], errors='coerce') or 0)
 
-               # --- 單價安全處理 ---
-               raw_price = tool_info.get("單價", 0)
+                # --- 單價安全處理 ---
+                raw_price = tool_info.get("單價", 0)
 
-               try:
-                   if pd.isna(raw_price) or str(raw_price).strip() == "":
-                       current_price = 0.0
-                   else:
-                       # 處理 Google Sheet 可能出現的 $, 逗號或文字
-                       clean_price = str(raw_price).replace(",", "").replace("$", "").strip()
-                       current_price = float(clean_price)
-               except (ValueError, TypeError):
-                   current_price = 0.0
+                try:
+                    if pd.isna(raw_price) or str(raw_price).strip() == "":
+                        current_price = 0.0
+                    else:
+                        # 處理 Google Sheet 可能出現的 $, 逗號或文字
+                        clean_price = str(raw_price).replace(",", "").replace("$", "").strip()
+                        current_price = float(clean_price)
+                except (ValueError, TypeError):
+                    current_price = 0.0
 
-               col_a, col_b, col_c = st.columns(3)
-               col_a.metric("架上", cur_shelf)
-               col_b.metric("倉庫", cur_wh)
-               col_c.metric("單價", f"${current_price:,.0f}")
+                col_a, col_b, col_c = st.columns(3)
+                col_a.metric("架上", cur_shelf)
+                col_b.metric("倉庫", cur_wh)
+                col_c.metric("單價", f"${current_price:,.0f}")
 
-               mode = st.radio("選擇操作模式", ["進貨", "上架", "盤點"], horizontal=True)
+                mode = st.radio("選擇操作模式", ["進貨", "上架", "盤點"], horizontal=True)
 
-               with st.form("t4_action_form", clear_on_submit=True):
-                   qty_input = st.number_input("數量", min_value=0, value=0)
-                   price_input = st.number_input(
-                       "本次單價",
-                       min_value=0.0,
-                       value=current_price,
-                       step=10.0
-                   ) if mode == "進貨" else current_price
+                with st.form("t4_action_form", clear_on_submit=True):
+                    qty_input = st.number_input("數量", min_value=0, value=0)
+                    price_input = st.number_input(
+                        "本次單價",
+                        min_value=0.0,
+                        value=current_price,
+                        step=10.0
+                    ) if mode == "進貨" else current_price
 
-                   u_input = st.text_input("操作人員")
+                    u_input = st.text_input("操作人員")
 
-                   if st.form_submit_button(f"確認{mode}"):
-                       payload = {
-                           "action": mode,
-                           "t_id": tool_info["刀具編號"],
-                           "qty": qty_input,
-                           "price": price_input,
-                           "u": u_input
-                       }
+                    if st.form_submit_button(f"確認{mode}"):
+                        payload = {
+                            "action": mode,
+                            "t_id": tool_info["刀具編號"],
+                            "qty": qty_input,
+                            "price": price_input,
+                            "u": u_input
+                        }
 
-                       if post_data_to_sheet(payload):
-                           idx = df_inv[df_inv["刀具編號"] == tool_info["刀具編號"]].index[0]
+                        if post_data_to_sheet(payload):
+                            idx = df_inv[df_inv["刀具編號"] == tool_info["刀具編號"]].index[0]
 
-                           # 強制轉型修復 TypeError
-                           df = st.session_state.data[0]
-                           df["架上"] = pd.to_numeric(df["架上"], errors='coerce').fillna(0)
-                           df["倉庫數量"] = pd.to_numeric(df["倉庫數量"], errors='coerce').fillna(0)
-                           df["單價"] = pd.to_numeric(df["單價"], errors='coerce').fillna(0)
+                            # 強制轉型修復 TypeError
+                            df = st.session_state.data[0]
+                            df["架上"] = pd.to_numeric(df["架上"], errors='coerce').fillna(0)
+                            df["倉庫數量"] = pd.to_numeric(df["倉庫數量"], errors='coerce').fillna(0)
+                            df["單價"] = pd.to_numeric(df["單價"], errors='coerce').fillna(0)
 
-                           # 處理記憶體更新
-                           if mode == "進貨":
-                               df.loc[idx, "倉庫數量"] = cur_wh + qty_input
-                               df.loc[idx, "單價"] = price_input
+                            # 處理記憶體更新
+                            if mode == "進貨":
+                                df.loc[idx, "倉庫數量"] = cur_wh + qty_input
+                                df.loc[idx, "單價"] = price_input
 
-                           elif mode == "上架":
-                               df.loc[idx, "架上"] = cur_shelf + qty_input
-                               df.loc[idx, "倉庫數量"] = max(0, cur_wh - qty_input)
+                            elif mode == "上架":
+                                df.loc[idx, "架上"] = cur_shelf + qty_input
+                                df.loc[idx, "倉庫數量"] = max(0, cur_wh - qty_input)
 
-                           elif mode == "盤點":
-                               clean_qty = int(qty_input) if pd.notnull(qty_input) else 0
-                               df.loc[idx, "倉庫數量"] = clean_qty
+                            elif mode == "盤點":
+                                clean_qty = int(qty_input) if pd.notnull(qty_input) else 0
+                                df.loc[idx, "倉庫數量"] = clean_qty
 
-                           st.cache_data.clear()
-                           st.session_state.success_msg = f"✅ {mode}成功！"
-                           st.rerun()
+                            st.cache_data.clear()
+                            st.session_state.success_msg = f"✅ {mode}成功！"
+                            st.rerun()
 
-                       else:
-                           st.error("❌ 操作失敗")
+                        else:
+                            st.error("❌ 操作失敗")
 
-           else:
-               st.warning("⚠️ 刀具資料加載中...")
+            else:
+                st.warning("⚠️ 刀具資料加載中...")
                 
         if "success_msg" in st.session_state:
             st.success(st.session_state.success_msg)
